@@ -1,0 +1,34 @@
+query ticket($ticketId: ID, $ticketInternalId: Int, $ticketNumber: String) {
+  ticket(
+    ticket: {
+      ticketId: $ticketId
+      ticketInternalId: $ticketInternalId
+      ticketNumber: $ticketNumber
+    }
+  ) {
+    ...ticketAttributes
+    createArticleType {
+      id
+      name
+    }
+    mentions(first: 20) {
+      totalCount
+      edges {
+        node {
+          ...ticketMention
+        }
+        cursor
+      }
+    }
+    checklist {
+      id
+      completed
+      incomplete
+      total
+      complete
+    }
+    referencingChecklistTickets {
+      ...referencingTicket
+    }
+  }
+}

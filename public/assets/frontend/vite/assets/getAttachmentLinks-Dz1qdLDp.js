@@ -1,0 +1,2 @@
+import{b1 as U,b2 as b}from"./overviewAttributes.api-C09LSZ8O.js";const v=(o,s)=>{const e=()=>{const{internalId:n}=o;return`${s}/attachments/${n}`},l=(n,i)=>U(i)?`${n}?preview=1`:"",a=n=>`${n}?disposition=inline`,c=n=>b(n.type),d=(n,i)=>`${n}${i?"?disposition=attachment":""}`,t=e(),p=l(t,o.type),r=c(o),u=d(t,r),w=a(t);return{baseUrl:t,inlineUrl:w,previewUrl:p,canDownload:r,downloadUrl:u}};export{v as g};
+//# sourceMappingURL=getAttachmentLinks-Dz1qdLDp.js.map

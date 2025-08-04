@@ -1,0 +1,201 @@
+/* stylelint-disable import-notation */
+@import 'tailwindcss';
+@import './tokens.css';
+
+@plugin '@formkit/themes/tailwindcss';
+@plugin '../../../build/zammadTailwindPlugin.js';
+
+@layer base {
+  html {
+    --safe-bottom: env(safe-area-inset-bottom);
+  }
+
+  [type='text'],
+  [type='password'],
+  [type='email'],
+  [type='number'],
+  [type='url'],
+  [type='date'],
+  [type='datetime-local'],
+  [type='time'],
+  [type='search'],
+  [type='tel'],
+  select,
+  select[multiple] {
+    @apply p-2;
+  }
+
+  textarea {
+    @apply px-2 py-1;
+  }
+
+  /* Override autofill styles in Firefox. */
+  :-moz-autofill {
+    background: transparent;
+  }
+
+  /* Override autofill styles in Webkit-based browsers. */
+  :-webkit-autofill {
+    -webkit-text-fill-color: white;
+    -webkit-background-clip: text;
+    caret-color: white;
+  }
+
+  /* No-op animation for hooking into autofill mechanism in Webkit-based browsers. */
+  :-webkit-autofill {
+    animation-name: onAutoFillStart;
+  }
+
+  :not(:-webkit-autofill) {
+    animation-name: onAutoFillEnd;
+  }
+
+  @keyframes onAutoFillStart {
+    from {
+    }
+
+    to {
+    }
+  }
+
+  @keyframes onAutoFillEnd {
+    from {
+    }
+
+    to {
+    }
+  }
+}
+
+@layer components {
+  .absolute-floating-input:focus-within label,
+  .absolute-floating-input.formkit-outer[data-populated] label {
+    @apply -translate-y-2 scale-75 opacity-75 ltr:translate-x-[2px] rtl:pt-5 rtl:pb-0 rtl:text-xs;
+  }
+
+  .floating-input.formkit-outer[data-populated] label {
+    @apply scale-100! text-xs opacity-75;
+  }
+
+  .floating-textarea:focus-within label,
+  .floating-textarea.formkit-outer[data-populated] label {
+    @apply translate-y-0! text-xs! opacity-75!;
+  }
+
+  .form-group {
+    &.form-group-mark-dirty .formkit-outer[data-dirty]::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 0.25rem;
+      background: repeating-linear-gradient(
+          45deg,
+          rgba(255, 255, 255, 0.1),
+          rgba(255, 255, 255, 0.1) 5px,
+          transparent 5px,
+          transparent 9px
+        )
+        repeat center;
+      background-size: 11px 11px;
+    }
+
+    .formkit-outer:not(:last-child) {
+      > :last-child {
+        @apply border-b border-[rgba(255,255,255,0.1)];
+      }
+    }
+  }
+
+  .Content,
+  .ProseMirror {
+    div[data-signature-marker] {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: none;
+    }
+
+    blockquote {
+      @apply border-l-4 border-l-gray-200 px-3 py-2;
+    }
+
+    ol {
+      list-style: decimal;
+    }
+
+    ul {
+      list-style: disc;
+    }
+
+    ol,
+    ul {
+      @apply pb-2;
+
+      padding-inline-start: 0.5rem;
+      list-style-position: inside;
+
+      p {
+        display: inline;
+      }
+    }
+
+    h1 {
+      @apply mt-2 mb-1 text-2xl font-bold;
+    }
+
+    h2 {
+      @apply mt-2 mb-1 text-xl font-bold;
+    }
+
+    h3 {
+      @apply mt-2 mb-1 text-lg font-bold;
+    }
+
+    a {
+      @apply text-blue;
+    }
+
+    [dir='rtl'] {
+      text-align: right;
+    }
+
+    [dir='ltr'] {
+      text-align: left;
+    }
+  }
+
+  .file-list.show-gradient::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 1.25rem;
+    height: 30px;
+    pointer-events: none;
+  }
+
+  .file-list.bottom-gradient::before {
+    bottom: 1.25rem;
+    background: linear-gradient(rgba(255, 255, 255, 0), var(--color-gray-500));
+  }
+
+  .file-list.top-gradient::before {
+    top: 0;
+    background: linear-gradient(var(--color-gray-500), rgba(255, 255, 255, 0));
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility mb-safe {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+
+@utility required {
+  @apply after:text-yellow after:ms-1 after:inline-block after:font-extrabold after:content-['•'];
+}

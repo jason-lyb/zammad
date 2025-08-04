@@ -1,0 +1,31 @@
+fragment userCurrentTaskbarItemAttributes on UserTaskbarItem {
+  id
+  key
+  callback
+  formId
+  formNewArticlePresent
+  entity {
+    ... on Ticket {
+      ...ticketTaskbarTabAttributes
+    }
+    ... on UserTaskbarItemEntityTicketCreate {
+      uid
+      title
+      createArticleTypeKey
+    }
+    ... on User {
+      id
+      internalId
+    }
+    ... on Organization {
+      id
+      internalId
+    }
+  }
+  entityAccess
+  prio
+  changed
+  dirty
+  notify
+  updatedAt
+}

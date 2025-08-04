@@ -1,0 +1,2 @@
+import{f as e,m as o,p as r}from"./vue-oicRkvo0.js";import{l as s}from"./overviewAttributes.api-C09LSZ8O.js";const n=["aria-label","value","max"],m=e({__name:"CommonProgressBar",props:{value:{},max:{}},setup(p){return(a,t)=>(o(),r("progress",{class:"progress",tabindex:"0","aria-label":a.$t("Indicating progress"),value:a.value,max:a.max},null,8,n))}}),_=s(m,[["__scopeId","data-v-4d3a11d6"]]);export{_ as C};
+//# sourceMappingURL=CommonProgressBar-B-HvRpIP.js.map

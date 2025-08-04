@@ -1,0 +1,14 @@
+import{g as u}from"./getAttachmentLinks-Dz1qdLDp.js";import{aR as f}from"./overviewAttributes.api-C09LSZ8O.js";import{u as _,Q as y,g as v}from"./apollo-Cj5TVUDk.js";import{e as I}from"./routes-CgLO9M4y.js";import{o as E}from"./openExternalLink-B2ZtqYBi.js";import{_ as g}from"./CommonFlyout.vue_vue_type_script_setup_true_lang-Cr1ukr3s.js";import{d as b,k}from"./desktop-l0eJ1dZN.js";import{n as w}from"./vendor-C11O1Xx8.js";import{f as C,c as h,m as D,D as F,y as l,q as s,u as Q}from"./vue-oicRkvo0.js";import"./lodash-pFOI14f-.js";import"./formkit-5nol1GBe.js";import"./vite-FJshFMF2.js";import"./CommonOverlayContainer.vue_vue_type_script_setup_true_lang-CxyKmNUC.js";import"./LayoutSidebar.vue_vue_type_script_setup_true_lang-BO1pkKrb.js";import"./useForm-CUKec4n5.js";import"./useFlyout-KZXqW5RR.js";import"./Form.vue_vue_type_script_setup_true_lang-B6L-6HzY.js";import"./FormGroup.vue_vue_type_script_setup_true_lang-DIx-HUKU.js";import"./useCopyToClipboard-CjkPg__g.js";import"./theme-Bv2ClBzZ.js";import"./datepicker-BBNcWeHz.js";import"./date-B2UyDZN7.js";import"./autocompleteTags.api-CG5-cm_A.js";import"./autocompleteSearchTicket.api-DfOQWGlO.js";import"./ticketUpdates.api-BhGIG_Ti.js";import"./ticketAttributes.api-rqx5ITab.js";import"./useTicketCreateArticleType-D7iVcJ_6.js";import"./types-Cu-Nkl7K.js";import"./useTicketCreateView-HCH46SPv.js";import"./commonjsHelpers-BosuxZz1.js";const L=w`
+    query calendarIcsFileEvents($fileId: ID!) {
+  calendarIcsFileEvents(fileId: $fileId) {
+    title
+    location
+    startDate
+    endDate
+    organizer
+    attendees
+    description
+  }
+}
+    `;function $(n,t={}){return _(L,n,t)}const le=C({__name:"CommonCalendarPreviewFlyout",props:{fileId:{},fileType:{},fileName:{}},setup(n){const t=n,r=new y($({fileId:t.fileId})),i=r.result(),m=r.loading(),p=[{key:"summary",label:__("Event Summary")},{key:"location",label:__("Event Location")},{key:"start",label:__("Event Starting"),type:"timestamp_absolute"},{key:"end",label:__("Event Ending"),type:"timestamp_absolute"}],c=h(()=>{var e,a;return(e=i.value)!=null&&e.calendarIcsFileEvents?(a=i.value)==null?void 0:a.calendarIcsFileEvents.map(o=>({id:v(),summary:o.title,location:o.location,start:o.startDate,end:o.endDate})):[]}),d=()=>{const e=I(),{downloadUrl:a}=u({internalId:f(t.fileId),type:t.fileType},e.config.api_path);E(a,"_blank",t.fileName)};return(e,a)=>(D(),F(g,{"header-title":e.__("Preview Calendar"),"footer-action-options":{actionLabel:e.__("Download"),actionButton:{variant:"primary"}},name:"common-calendar-preview","no-close-on-action":"",onAction:d},{default:l(()=>[s(b,{loading:Q(m)},{default:l(()=>[s(k,{caption:e.__("Preview Calendar"),class:"mb-4 w-full",headers:p,items:c.value},null,8,["caption","items"])]),_:1},8,["loading"])]),_:1},8,["header-title","footer-action-options"]))}});export{le as default};
+//# sourceMappingURL=CommonCalendarPreviewFlyout-EsrCnnze.js.map

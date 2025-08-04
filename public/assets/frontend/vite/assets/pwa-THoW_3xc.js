@@ -1,0 +1,2 @@
+import{s as t,c as l}from"./vue-oicRkvo0.js";const i=()=>"standalone"in window.navigator&&window.navigator.standalone||window.matchMedia("(display-mode: standalone)").matches,a=t(null),r=()=>({canInstallPWA:l(()=>a.value!==null),installPWA:async()=>{if(!a.value)return;a.value.prompt();const{outcome:e}=await a.value.userChoice;e==="accepted"&&(a.value=null)}}),d=()=>{window.addEventListener("beforeinstallprompt",n=>{a.value=n}),window.addEventListener("appinstalled",()=>{a.value=null})};export{i,d as r,r as u};
+//# sourceMappingURL=pwa-THoW_3xc.js.map

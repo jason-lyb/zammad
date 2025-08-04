@@ -1,0 +1,2 @@
+import{e as o,a}from"./routes-CgLO9M4y.js";import{g as n}from"./apollo-Cj5TVUDk.js";import{c as s}from"./vue-oicRkvo0.js";const h=()=>{const r=o(),e=a(),i=s(()=>e.hasPermission("ticket.agent")||e.hasPermission("ticket.customer")&&r.config.customer_ticket_create),c=s(()=>e.hasPermission("ticket.customer")&&!e.hasPermission("ticket.agent"));return{ticketCreateEnabled:i,isTicketCustomer:c,checkUniqueTicketCreateRoute:t=>t.params.tabId?!0:{path:`/tickets/create/${n()}`,query:t.query}}};export{h as u};
+//# sourceMappingURL=useTicketCreateView-HCH46SPv.js.map

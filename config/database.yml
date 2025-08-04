@@ -1,0 +1,16 @@
+default: &default
+  adapter: postgresql
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 50 } %>
+  timeout: 5000
+  encoding: utf8
+  # Docker 환경에서 연결 안정성 향상
+  reconnect: true
+  checkout_timeout: 5
+
+production:
+  <<: *default
+  database: <%= ENV['POSTGRES_DB'] || 'zammad_production' %>
+  username: <%= ENV['POSTGRES_USER'] || 'zammad' %>
+  password: <%= ENV['POSTGRES_PASS'] || 'zammad' %>
+  host: zammad-postgresql
+  port: 5432

@@ -1,0 +1,7 @@
+# #{ticket.title}
+_<#{config.http_type}://#{config.fqdn}/#ticket/zoom/#{ticket.id}|Ticket##{ticket.number}>: Eskaloituu #{ticket.escalation_at}_
+Tiketti (#{ticket.title}) asiakkaalta "#{ticket.customer.longname}" eskaloituu "#{ticket.escalation_at}"!
+
+<% if @objects[:article] %>
+#{article.body_as_text}
+<% end %>

@@ -1,0 +1,2 @@
+import{d as t}from"./desktop-l0eJ1dZN.js";import{f as o,a1 as m,m as s,p as n,D as r,y as c,Q as p,M as _,E as i,q as l}from"./vue-oicRkvo0.js";const d={class:"mt-1 text-center"},k=o({__name:"GuidedSetupStatusMessage",props:{message:{}},setup(u){return(e,f)=>{const a=m("CommonLabel");return s(),n("div",d,[e.message?(s(),r(a,{key:0},{default:c(()=>[p(_(e.$t(e.message)),1)]),_:1})):i("",!0),l(t,{class:"mt-5 mb-3",loading:""})])}}});export{k as _};
+//# sourceMappingURL=GuidedSetupStatusMessage.vue_vue_type_script_setup_true_lang-CK-LgkYz.js.map
