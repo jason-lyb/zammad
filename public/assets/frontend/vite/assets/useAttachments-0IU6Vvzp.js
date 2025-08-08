@@ -1,2 +1,0 @@
-import{g as p}from"./getAttachmentLinks-Dz1qdLDp.js";import{e as s}from"./routes-CgLO9M4y.js";import{c}from"./vue-oicRkvo0.js";const f=n=>{const e=s();return{attachments:c(()=>n.attachments.value.map(t=>{const{previewUrl:r,inlineUrl:a,canDownload:o,downloadUrl:i}=p({internalId:t.internalId,type:t.type},e.config.api_path);return{...t,preview:r,inline:a,canDownload:o,downloadUrl:i}}))}};export{f as u};
-//# sourceMappingURL=useAttachments-0IU6Vvzp.js.map

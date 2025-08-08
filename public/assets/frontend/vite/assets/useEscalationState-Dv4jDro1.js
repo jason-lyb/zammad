@@ -1,2 +1,0 @@
-import{G as a}from"./routes-CgLO9M4y.js";import{c as o,R as s}from"./vue-oicRkvo0.js";var i=(e=>(e.Escalated="escalated",e.Warning="warning",e.None="none",e))(i||{});const f=e=>{const r=a();return o(()=>{const n=s(e);if(!n)return"none";const t=new Date(n);return Number.isNaN(t.getTime())?"none":(r.value.getTime()-t.getTime())/1e3>-1?"escalated":"warning"})};export{i as E,f as u};
-//# sourceMappingURL=useEscalationState-Dv4jDro1.js.map
