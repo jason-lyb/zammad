@@ -10,6 +10,7 @@ class App.GlobalSearch extends App.Controller
   search: (params) =>
     query = params.query
 
+    # 날짜 범위를 포함한 캐시 키 생성
     cacheKey = @searchResultCacheKey(query, params)
 
     # use cache for search result
@@ -33,20 +34,36 @@ class App.GlobalSearch extends App.Controller
           params.callbackLongerAsExpected()
       @delay(delayCallback, 10000, 'global-search-ajax-longer-as-expected')
 
+      # API 요청 데이터 구성
+      requestData = 
+        query: query
+        by_object: true
+        objects: params.object
+        limit: @limit || 10
+        offset: params.offset
+        order_by: params.orderDirection
+        sort_by: params.orderBy
+
+      # 날짜 범위 파라미터 추가
+      if params.date_from
+        requestData.date_from = params.date_from
+        console.log '[GlobalSearch] Adding date_from:', params.date_from
+        
+      if params.date_to
+        requestData.date_to = params.date_to
+        console.log '[GlobalSearch] Adding date_to:', params.date_to
+
+      console.log '[GlobalSearch] Request data:', requestData
+
       @ajaxRequestId = App.Ajax.request(
         id:   @ajaxId
         type: 'GET'
         url: "#{@apiPath}/search"
-        data:
-          query: query
-          by_object: true
-          objects: params.object
-          limit: @limit || 10
-          offset: params.offset
-          order_by: params.orderDirection
-          sort_by: params.orderBy
+        data: requestData
         processData: true
         success: (data, status, xhr) =>
+          console.log '[GlobalSearch] Response received:', data
+          
           @clearDelay('global-search-ajax-longer-as-expected')
           App.Collection.loadAssets(data.assets)
 
@@ -80,7 +97,14 @@ class App.GlobalSearch extends App.Controller
 
           @ajaxStop(params)
           @renderTry(result, query, params)
-        error: =>
+        error: (xhr, status, error) =>
+          console.error '[GlobalSearch] Request failed:', status, error
+          if xhr.responseText
+            try
+              errorData = JSON.parse(xhr.responseText)
+              console.error '[GlobalSearch] Error details:', errorData
+            catch
+              console.error '[GlobalSearch] Response text:', xhr.responseText
           @clearDelay('global-search-ajax-longer-as-expected')
           @ajaxStop(params)
       )
@@ -122,8 +146,11 @@ class App.GlobalSearch extends App.Controller
 
     @render(result, params)
 
+  # 캐시 키에 날짜 범위 정보 포함
   searchResultCacheKey: (query, params) ->
-    "#{query}-#{params.object}-#{params.offset}-#{params.orderDirection}-#{params.orderBy}"
+    dateFromKey = params.date_from || ''
+    dateToKey = params.date_to || ''
+    "#{query}-#{params.object}-#{params.offset}-#{params.orderDirection}-#{params.orderBy}-#{dateFromKey}-#{dateToKey}"
 
   close: =>
     @lastParams = undefined

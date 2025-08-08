@@ -214,7 +214,7 @@ returns
       elsif params[:with_total_count].present?
         if params[:full].present?
           return {
-            objects:     object_ids.filter_map { |id| lookup(id: id) },
+            objects:     where_ordered_ids(object_ids),
             total_count: object_count
           }
         end
@@ -224,7 +224,7 @@ returns
           total_count: object_count
         }
       elsif params[:full].present?
-        object_ids.filter_map { |id| lookup(id: id) }
+        where_ordered_ids(object_ids)
       else
         object_ids
       end
@@ -295,6 +295,15 @@ returns
 
     def sql_helper
       @sql_helper ||= ::SqlHelper.new(object: self)
+    end
+
+    #
+    # Returns a relation with objects referenced by the ids in their original order.
+    #
+    def where_ordered_ids(ids)
+      order_by = "array_position(ARRAY[#{ids.join(',')}], id)"
+
+      where(id: ids).reorder(Arel.sql(order_by))
     end
   end
 end

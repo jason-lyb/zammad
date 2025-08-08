@@ -15136,3 +15136,120 @@ div.accounted-time-value {
   }
 }
 
+.date-range-filter {
+  position: relative;
+  margin-bottom: 20px;
+  
+  .date-range-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+  
+  .date-range-label {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  
+  .date-inputs {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    
+    input[type="date"] {
+      appearance: textfield;
+      border-radius: 19px;
+      padding: 0 17px;
+//      border: 1px solid var(--border-color, #ddd);
+      font-size: 14px;
+      min-width: 140px;
+      height: 38px; // searchfield와 동일한 높이
+      will-change: transform;
+      transition: 0.1s 0s;
+      
+      &:focus {
+        outline: none;
+        border-color: var(--primary-color, #007bff);
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+      }
+    }
+
+    // WebKit 기반 브라우저에서 date input의 기본 스타일 제거
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: 0.7;
+      transition: opacity 0.1s;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+
+    input[type="date"]::-webkit-inner-spin-button,
+    input[type="date"]::-webkit-clear-button {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+  }
+  
+  .date-separator {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 14px;
+    user-select: none;
+  }
+  
+  // 날짜 프리셋 버튼들
+  .date-presets {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+
+    .js-date-preset {
+      border-radius: 15px;
+      padding: 4px 12px;
+      font-size: 11px;
+      border: 1px solid var(--border-color, #dee2e6);
+      background: var(--background-color, white);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.1s;
+      will-change: transform;
+      white-space: nowrap;
+
+      &:hover {
+        background: var(--background-hover-color, #e9ecef);
+        border-color: var(--border-hover-color, #bbb);
+        color: var(--text-color);
+      }
+
+      &:active, &.is-active {
+        background: var(--primary-color, #007bff);
+        color: white;
+        border-color: var(--primary-color, #007bff);
+        transform: translateY(1px);
+      }
+
+      &.is-active, &.active {
+        background: var(--primary-color, #007bff);
+        color: white;
+        border-color: var(--primary-color, #007bff);
+        font-weight: 600;
+      }      
+    }
+  }
+}
+
+// 접근성을 위한 포커스 개선
+.date-range-filter {
+  input[type="date"]:focus-visible,
+  .js-clear-dates:focus-visible,
+  .js-date-preset:focus-visible {
+    outline: 2px solid var(--primary-color, #007bff);
+    outline-offset: 2px;
+  }
+}

@@ -6,6 +6,8 @@ class App.Search extends App.Controller
 
   elements:
     '.js-search': 'searchInput'
+    '.js-date-from': 'dateFromInput'  # 추가
+    '.js-date-to': 'dateToInput'      # 추가
 
   events:
     'click .js-emptySearch': 'empty'
@@ -15,6 +17,8 @@ class App.Search extends App.Controller
     'input .js-search': 'updateFilledClass'
     'click .js-page': 'paginate'
     'click .js-sort': 'sortByColumn'
+    'change .js-date-from': 'onDateChange'  # 추가
+    'change .js-date-to': 'onDateChange'    # 추가    
 
   @include App.ValidUsersForTicketSelectionMethods
 
@@ -29,6 +33,10 @@ class App.Search extends App.Controller
     current = App.TaskManager.get(@taskKey).state
     if current && current.query
       @query = current.query
+
+    # 날짜 기본값 설정
+    @dateFrom = current?.dateFrom || @getTodayString()
+    @dateTo = current?.dateTo || @getTodayString()      
 
     # update taskbar with new meta data
     App.TaskManager.touch(@taskKey)
@@ -101,6 +109,14 @@ class App.Search extends App.Controller
   changed: ->
     # nothing
 
+  # 오늘 날짜를 YYYY-MM-DD 형식으로 반환하는 헬퍼 메서드
+  getTodayString: ->
+    today = new Date()
+    year = today.getFullYear()
+    month = String(today.getMonth() + 1).padStart(2, '0')
+    day = String(today.getDate()).padStart(2, '0')
+    "#{year}-#{month}-#{day}"
+
   render: ->
     currentState = App.TaskManager.get(@taskKey).state
     if !@query
@@ -112,6 +128,10 @@ class App.Search extends App.Controller
         @model = currentState.model
       else
         @model = 'Ticket'
+
+    # 날짜 기본값 설정
+    @dateFrom = current?.dateFrom || @getTodayString()
+    @dateTo = current?.dateTo || @getTodayString()      
 
     @tabs = []
     for model in App.Config.get('models_searchable')
@@ -129,6 +149,8 @@ class App.Search extends App.Controller
     elLocal = $(App.view('search/index')(
       query: @query
       tabs: @tabs
+      dateFrom: @dateFrom    # 추가
+      dateTo: @dateTo        # 추가      
     ))
 
     if App.User.current().permission('ticket.agent')
@@ -143,8 +165,22 @@ class App.Search extends App.Controller
       )
 
     @html elLocal
-    if @query
+
+    # 렌더링 후 날짜 필드 값 설정
+    @dateFromInput = @$('.js-date-from')
+    @dateToInput = @$('.js-date-to')
+
+    if @dateFromInput.length > 0
+      @dateFromInput.val(@dateFrom)
+    if @dateToInput.length > 0
+      @dateToInput.val(@dateTo)
+
+    if @query || @hasDateRange()
       @search(500, true)
+
+  # 날짜 범위가 설정되어 있는지 확인
+  hasDateRange: ->
+    (@dateFrom && @dateFrom.length > 0) || (@dateTo && @dateTo.length > 0)
 
   listNavigate: (e) =>
     @resultPaginated = {}
@@ -160,18 +196,31 @@ class App.Search extends App.Controller
 
   empty: =>
     @searchInput.val('')
+    todayString = @getTodayString()
+    if @dateFromInput && @dateFromInput.length > 0
+      @dateFromInput.val(todayString)
+    if @dateToInput && @dateToInput.length > 0
+      @dateToInput.val(todayString)
     @query = ''
+    @dateFrom = todayString
+    @dateTo = todayString
     @updateFilledClass()
     @updateTask()
-
     @delayedRemoveAnyPopover()
 
+  # 기존 search 메서드는 그대로 유지
   search: (delay, force = false, skipRendering = false) =>
     query = @searchInput.val().trim()
+
+    # 쿼리에 날짜 범위를 추가해서 전달
+    finalQuery = @buildQueryWithDateRange(query)
+
     if !force
-      return if !query
-      return if query is @query
-    @query = query
+      return if !finalQuery && !@hasDateRange()
+      return if finalQuery is @lastFinalQuery && !@dateChanged()
+    
+    @query = query  # 원본 쿼리는 사용자 입력만 저장
+    @lastFinalQuery = finalQuery  # 마지막 최종 쿼리 저장
     @updateTask()
 
     if delay is 0
@@ -181,11 +230,69 @@ class App.Search extends App.Controller
       else if query.length > 4
         delay = 200
 
-    @globalSearch.search(
-      delay:         delay
-      query:         @query
+    # GlobalSearch에 날짜 파라미터 포함해서 호출
+    searchParams = 
+      delay: delay
+      query: @lastFinalQuery
       skipRendering: skipRendering
-    )
+      
+    # 날짜 파라미터 추가
+    if @dateFrom && @dateFrom.length > 0
+      searchParams.date_from = @dateFrom
+    if @dateTo && @dateTo.length > 0
+      searchParams.date_to = @dateTo
+
+    console.log '[Search] Calling GlobalSearch with params:', searchParams
+
+    @globalSearch.search(searchParams)
+  
+    # 쿼리에 날짜 범위를 추가하는 메서드
+  buildQueryWithDateRange: (baseQuery) ->
+    # 기본 쿼리 정리
+    cleanQuery = baseQuery.trim()
+    
+    # 날짜 범위 쿼리 생성
+    dateQuery = ''
+    if @dateFrom && @dateTo && @dateFrom.length > 0 && @dateTo.length > 0
+      dateQuery = "created_at:[#{@dateFrom} TO #{@dateTo}]"
+    else if @dateFrom && @dateFrom.length > 0
+      dateQuery = "created_at:[#{@dateFrom} TO *]"
+    else if @dateTo && @dateTo.length > 0
+      dateQuery = "created_at:[* TO #{@dateTo}]"
+    
+    # 최종 쿼리 조합
+    if cleanQuery && dateQuery
+      "#{cleanQuery} #{dateQuery}"
+    else if dateQuery
+      dateQuery
+    else
+      cleanQuery
+
+  # 날짜가 변경되었는지 확인
+  dateChanged: ->
+    @dateFrom != @lastDateFrom || @dateTo != @lastDateTo
+
+  # 쿼리에 날짜 범위를 추가하는 메서드
+  buildQueryWithDateRange: (baseQuery) ->
+    # 기본 쿼리 정리
+    cleanQuery = baseQuery.trim()
+    
+    # 날짜 범위 쿼리 생성
+    dateQuery = ''
+    if @dateFrom && @dateTo && @dateFrom.length > 0 && @dateTo.length > 0
+      dateQuery = "created_at:[#{@dateFrom} TO #{@dateTo}]"
+    else if @dateFrom && @dateFrom.length > 0
+      dateQuery = "created_at:[#{@dateFrom} TO *]"
+    else if @dateTo && @dateTo.length > 0
+      dateQuery = "created_at:[* TO #{@dateTo}]"
+    
+    # 최종 쿼리 조합
+    if cleanQuery && dateQuery
+      "#{cleanQuery} #{dateQuery}"
+    else if dateQuery
+      dateQuery
+    else
+      cleanQuery
 
   buildResultCacheKey: (offset, direction, column, object) -> {
     "#{object}-#{offset}-#{direction}-#{column}"
@@ -462,11 +569,84 @@ class App.Search extends App.Controller
       delay: -1
     )
 
+  # 날짜 변경 시 호출되는 메서드
+  onDateChange: (e) =>
+    @dateFrom = @dateFromInput.val() if @dateFromInput
+    @dateTo = @dateToInput.val() if @dateToInput
+
+    # 자동으로 날짜 필터 적용
+    @updateTask()
+    
+    # 검색어가 있을 때만 자동 검색
+    @search(500, true)    
+
+    # 자동으로 날짜 필터 적용 (버튼 클릭 없이)
+  autoApplyDateFilter: =>
+    # 기존 검색어에서 날짜 범위 제거
+    currentQuery = @searchInput.val().trim()
+    cleanQuery = @removeDateFromQuery(currentQuery)
+    
+    # 새로운 날짜 범위 추가
+    if @dateFrom && @dateTo
+      dateQuery = "created_at:[#{@dateFrom} TO #{@dateTo}]"
+      newQuery = if cleanQuery
+                   "#{cleanQuery} #{dateQuery}"
+                 else
+                   dateQuery
+    else if @dateFrom
+      dateQuery = "created_at:[#{@dateFrom} TO *]"
+      newQuery = if cleanQuery
+                   "#{cleanQuery} #{dateQuery}"
+                 else
+                   dateQuery
+    else if @dateTo
+      dateQuery = "created_at:[* TO #{@dateTo}]"
+      newQuery = if cleanQuery
+                   "#{cleanQuery} #{dateQuery}"
+                 else
+                   dateQuery
+    else
+      # 날짜가 모두 비어있으면 기존 쿼리만 유지
+      newQuery = cleanQuery
+
+    # 검색 입력 필드 업데이트
+    @searchInput.val(newQuery)
+    @updateFilledClass()
+    
+    # 딜레이를 두고 검색 실행 (너무 빠른 연속 입력 방지)
+    @search(800, true)
+
+  # 날짜 필터 적용 버튼 클릭 (이제 즉시 적용용)
+  applyDateFilter: (e) =>
+    e.preventDefault()
+    
+    @dateFrom = @dateFromInput.val() if @dateFromInput
+    @dateTo = @dateToInput.val() if @dateToInput
+    
+    @autoApplyDateFilter()    
+
+  # 쿼리에서 기존 날짜 범위 제거
+  removeDateFromQuery: (query) ->
+    return '' if !query
+    
+    # created_at:[날짜범위] 패턴 제거
+    cleanQuery = query.replace(/created_at:\[[^\]]+\]/g, '')
+    # updated_at:[날짜범위] 패턴도 제거
+    cleanQuery = cleanQuery.replace(/updated_at:\[[^\]]+\]/g, '')
+    # close_at:[날짜범위] 패턴도 제거  
+    cleanQuery = cleanQuery.replace(/close_at:\[[^\]]+\]/g, '')
+    
+    # 연속된 공백 정리
+    cleanQuery = cleanQuery.replace(/\s+/g, ' ').trim()
+    cleanQuery
+
   updateTask: =>
     current = App.TaskManager.get(@taskKey).state
     return if !current
     current.query = @query
     current.model = @model
+    current.dateFrom = @dateFrom  # 추가
+    current.dateTo = @dateTo      # 추가    
     App.TaskManager.update(@taskKey, { state: current })
     App.TaskManager.touch(@taskKey)
 

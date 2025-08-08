@@ -1,7 +1,19 @@
 <div class="flex main vertical">
-
   <div class="detail-search">
     <div class="detail-search-header">
+
+      <!-- 날짜 범위 검색 추가 -->
+      <div class="date-range-filter">
+        <div class="date-range-wrapper">
+          <label class="date-range-label"><%- @T('조회 기간') %></label>
+          <div class="date-inputs">
+            <input type="date" class="js-date-from form-control" name="date_from" placeholder="<%- @T('From') %>" value="<%= @dateFrom || '' %>">
+            <span class="date-separator">-</span>
+            <input type="date" class="js-date-to form-control" name="date_to" placeholder="<%- @T('To') %>" value="<%= @dateTo || '' %>">
+          </div>
+        </div>
+      </div>
+
       <div class="searchfield">
         <input class="js-search form-control<%= if !@query then ' is-empty' %>" name="query" placeholder="<%- @Ti('Find what you\'re looking for, e.g. "search phrase"') %>" value="<%= @query %>" type="search" autocomplete="off">
         <%- @Icon('magnifier') %>
@@ -22,8 +34,4 @@
 
     <div class="js-content"></div>
   </div>
-
 </div>
-
-<div class="bulkAction hide"></div>
-<div class="batch-overlay js-batch-overlay"></div>
