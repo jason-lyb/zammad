@@ -1,0 +1,37 @@
+<!-- app/assets/javascripts/app/views/integration/kakao.jst.eco -->
+<div class="page-content">
+  <form class="form-horizontal">
+    
+    <div class="form-group">
+      <label for="api_endpoint"><%- @T('상담톡 API 서버 URL') %></label>
+      <input type="text" 
+             id="api_endpoint" 
+             name="api_endpoint" 
+             class="form-control" 
+             value="<%= @config.api_endpoint || '' %>" 
+             placeholder="https://consultation-api.company.com">
+      <p class="help-block"><%- @T('카카오톡 상담톡 API 서버의 엔드포인트 URL을 입력하세요.') %></p>
+    </div>
+    
+    <div class="form-group">
+      <label for="api_token"><%- @T('API 인증 토큰') %></label>
+      <input type="password" 
+             id="api_token" 
+             name="api_token" 
+             class="form-control" 
+             value="<%= @config.api_token || '' %>" 
+             placeholder="API 토큰을 입력하세요">
+      <p class="help-block"><%- @T('상담톡 API 서버 인증을 위한 토큰입니다.') %></p>
+    </div>
+    
+    <div class="form-group">
+      <button type="button" class="btn btn-default js-test-connection">
+        <%- @T('연결 테스트') %>
+      </button>
+      <button type="submit" class="btn btn-primary">
+        <%- @T('설정 저장') %>
+      </button>
+    </div>
+    
+  </form>
+</div>

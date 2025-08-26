@@ -492,12 +492,36 @@ Permission.create_if_not_exists(
   },
   allow_signup: true,
 )
+Permission.create_if_not_exists(
+  name: 'admin.channel_kakao',
+  note: 'KakaoTalk 채널 관리',
+  preferences: {
+    translations: {
+      'Deutsch' => 'KakaoTalk-Kanal verwalten',
+      'English' => 'Manage KakaoTalk Channel',
+      '한국어' => 'KakaoTalk 채널 관리',
+    }
+  }
+)
+Permission.create_if_not_exists(
+  name: 'ticket.agent_kakao',
+  note: 'KakaoTalk 상담 처리',
+  preferences: {
+    translations: {
+      'Deutsch' => 'KakaoTalk-Beratung bearbeiten',
+      'English' => 'Handle KakaoTalk Consultations',
+      '한국어' => 'KakaoTalk 상담 처리',
+    }
+  }
+)
 
 admin = Role.find_by(name: 'Admin')
 admin.permission_grant('user_preferences')
 admin.permission_grant('admin')
 admin.permission_grant('report')
 admin.permission_grant('knowledge_base.editor')
+admin.permission_grant('admin.integration')          # 이 줄 추가
+admin.permission_grant('admin.channel_kakao')        # 이 줄 추가
 
 agent = Role.find_by(name: 'Agent')
 agent.permission_grant('user_preferences')

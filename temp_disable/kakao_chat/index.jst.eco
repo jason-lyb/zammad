@@ -1,0 +1,40 @@
+<div class="page-header">
+  <div class="page-header-title">
+    <h1>
+      <svg class="icon icon-message-circle"><use xlink:href="#icon-message-circle"></use></svg>
+      <%- @T('카카오톡 상담') %>
+    </h1>
+  </div>
+  <div class="page-header-meta">
+    <a class="btn btn--success btn--create js-refreshList" href="#" title="<%- @T('새로고침') %>">
+      <svg class="icon icon-arrow-clockwise"><use xlink:href="#icon-arrow-clockwise"></use></svg>
+      <%- @T('새로고침') %>
+    </a>
+  </div>
+</div>
+
+<div class="page-content">
+  <div class="flex horizontal">
+    <!-- 채팅 목록 -->
+    <div class="sidebar sidebar--left" style="width: 300px; min-width: 280px;">
+      <div class="sidebar-header">
+        <h3><%- @T('활성 상담 목록') %></h3>
+      </div>
+      <div class="sidebar-content js-chatList">
+        <div class="text-center text-muted" style="padding: 20px;">
+          <%- @T('상담 목록을 불러오는 중...') %>
+        </div>
+      </div>
+    </div>
+
+    <!-- 채팅 내용 -->
+    <div class="main flex vertical">
+      <div class="js-chatContent">
+        <div class="text-center text-muted chat-placeholder" style="padding: 40px;">
+          <svg class="icon icon-chat"><use xlink:href="#icon-chat"></use></svg>
+          <p><%- @T('상담을 선택해주세요.') %></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

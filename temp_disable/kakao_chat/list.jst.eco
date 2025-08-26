@@ -1,0 +1,22 @@
+<% if @sessions && @sessions.length > 0: %>
+  <% for session in @sessions: %>
+    <div class="chat-item js-chatItem" data-chat-id="<%= session.id %>">
+      <div class="chat-item-content">
+        <div class="chat-item-header">
+          <span class="chat-item-name"><%= session.customer_name || '익명' %></span>
+        </div>
+        <div class="chat-item-preview">
+          <% if session.last_message: %>
+            <%= session.last_message %>
+          <% else: %>
+            새 상담
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+<% else: %>
+  <div class="text-center text-muted" style="padding: 20px;">
+    활성 상담이 없습니다.
+  </div>
+<% end %>

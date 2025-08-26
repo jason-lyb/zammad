@@ -5985,3 +5985,94 @@ Setting.create_if_not_exists(
   preferences: { online_service_disable: true },
   frontend:    false
 )
+
+Setting.create_if_not_exists(
+  title:       __('KakaoTalk integration'),
+  name:        'kakao_integration',
+  area:        'Integration::Switch',
+  description: __('Defines if the KakaoTalk integration is enabled or not.'),
+  options:     {
+    form: [
+      {
+        display: '',
+        null:    true,
+        name:    'kakao_integration',
+        tag:     'boolean',
+        options: {
+          true  => 'yes',
+          false => 'no',
+        },
+      },
+    ],
+  },
+  state:       false,
+  preferences: {
+    prio:           1,
+    trigger:        ['menu:render'],    
+    authentication: true,
+    permission:     ['admin.integration'],
+  },
+  frontend:    true
+)
+
+Setting.create_if_not_exists(
+  title:       __('KakaoTalk config'),
+  name:        'kakao_config',
+  area:        'Integration::KakaoTalk',
+  description: __('Defines the KakaoTalk config.'),
+  options:     {},
+  state:       {},
+  preferences: {
+    prio:       2,
+    permission: ['admin.integration'],
+  },
+  frontend:    false,
+)
+
+Setting.create_if_not_exists(
+  title:       __('KakaoTalk API endpoint'),
+  name:        'kakao_api_endpoint',
+  area:        'Integration::KakaoTalk',
+  description: __('Defines the KakaoTalk API endpoint.'),
+  options:     {
+    form: [
+      {
+        display: __('API Endpoint'),
+        null:    false,
+        name:    'kakao_api_endpoint',
+        tag:     'input',
+        placeholder: 'https://api.kakao.com/',
+      },
+    ],
+  },
+  state:       'https://api.kakao.com/',
+  preferences: {
+    prio:       3,
+    permission: ['admin.integration'],
+  },
+  frontend:    true,
+)
+
+Setting.create_if_not_exists(
+  title:       __('KakaoTalk API Token'),
+  name:        'kakao_api_token',
+  area:        'Integration::KakaoTalk',
+  description: __('Defines the KakaoTalk API token.'),
+  options:     {
+    form: [
+      {
+        display: __('API Token'),
+        null:    false,
+        name:    'kakao_api_token',
+        tag:     'input',
+        type:    'password',
+      },
+    ],
+  },
+  state:       '',
+  preferences: {
+    prio:       4,
+    permission: ['admin.integration'],
+  },
+  frontend:    true,
+)

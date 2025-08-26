@@ -1,8 +1,8 @@
 <div class="noty_message">
-  <% if @type is 'error': %>
+  <% if @type == 'error': %>
     <%- @Icon('diagonal-cross', 'icon-error') %>
   <% end %>
-  <% if @type is 'success': %>
+  <% if @type == 'success': %>
     <%- @Icon('checkmark') %>
   <% end %>
   <span class="noty_text"></span>

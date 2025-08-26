@@ -1,0 +1,37 @@
+<form>
+  <h2><%- @T('상담톡 API 서버 설정') %></h2>
+  <div class="settings-entry">
+    <table class="settings-list" style="width: 100%;">
+      <thead>
+        <tr>
+          <th width="25%"><%- @T('설정 항목') %>
+          <th width="75%"><%- @T('값') %>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="settings-list-row-control"><%- @T('상담톡 API 서버 URL') %> *
+          <td class="settings-list-control-cell"><input type="url" class="form-control form-control--small" value="<%= @api_endpoint %>" placeholder="https://consultation-api.company.com" name="api_endpoint" required>
+        <tr>
+          <td class="settings-list-row-control"><%- @T('API 인증 토큰') %> *
+          <td class="settings-list-control-cell"><input type="password" class="form-control form-control--small" value="<%= @api_token %>" placeholder="<%- @T('상담톡 API 서버 인증 토큰') %>" name="api_token" required>
+        <tr>
+          <td class="settings-list-row-control"><%- @T('Webhook 인증 토큰') %>
+          <td class="settings-list-control-cell"><input type="text" class="form-control form-control--small" value="<%= @webhook_token %>" placeholder="<%- @T('자동 생성된 Webhook 토큰') %>" name="webhook_token" readonly>
+        <tr>
+          <td class="settings-list-row-control"><%- @T('세션 타임아웃 (분)') %>
+          <td class="settings-list-control-cell"><input type="number" class="form-control form-control--small" value="<%= @session_timeout %>" min="5" max="1440" name="session_timeout">
+        <tr>
+          <td class="settings-list-row-control"><%- @T('Zammad Webhook URL') %>
+          <td class="settings-list-control-cell">
+            <input type="url" class="form-control form-control--small" value="<%= @callback_url %>" readonly>
+            <div class="help-text"><%- @T('이 URL을 상담톡 API 서버에 등록하세요') %></div>
+          </td>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="form-buttons">
+    <button type="submit" class="btn btn--primary js-submit"><%- @T('Save') %></button>
+    <a class="btn btn--success js-test-connection" href="#"><%- @T('연결 테스트') %></a>
+  </div>
+</form>

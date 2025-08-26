@@ -1,0 +1,42 @@
+<div class="chat-header">
+  <div class="chat-header-info">
+    <h3><%= @chat.customer_name || '익명' %></h3>
+    <span class="text-muted">상담 진행 중</span>
+  </div>
+  <div class="chat-header-actions">
+    <button class="btn btn--danger btn--small js-endChat">
+      상담 종료
+    </button>
+  </div>
+</div>
+
+<div class="chat-messages js-messagesList">
+  <% if @messages && @messages.length > 0: %>
+    <% for message in @messages: %>
+      <div class="message">
+        <div class="message-content">
+          <div class="message-bubble">
+            <%= message.content %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  <% else: %>
+    <div class="text-center text-muted" style="padding: 20px;">
+      메시지가 없습니다.
+    </div>
+  <% end %>
+</div>
+
+<div class="chat-input">
+  <div class="form-group">
+    <div class="input-group">
+      <textarea class="form-control js-messageInput" rows="2" placeholder="메시지를 입력하세요..."></textarea>
+      <div class="input-group-append">
+        <button class="btn btn--primary js-sendButton" type="button">
+          전송
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

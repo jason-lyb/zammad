@@ -1,0 +1,35 @@
+<% if @sessions && @sessions.length > 0: %>
+  <% for session in @sessions: %>
+    <div class="chat-item js-chatItem <%- 'is-active' if session.id is @activeChatId %>" data-chat-id="<%= session.id %>">
+      <div class="chat-item-avatar">
+        <div class="avatar avatar--small">
+          <% if session.customer_avatar: %>
+            <img src="<%= session.customer_avatar %>" alt="<%= session.customer_name %>">
+          <% else: %>
+            <div class="avatar-initials"><%= session.customer_name?.charAt(0) || '?' %></div>
+          <% end %>
+        </div>
+      </div>
+      <div class="chat-item-content">
+        <div class="chat-item-header">
+          <span class="chat-item-name"><%= session.customer_name || @T('익명') %></span>
+          <span class="chat-item-time"><%- @humanTime(session.updated_at) %></span>
+        </div>
+        <div class="chat-item-preview">
+          <% if session.last_message: %>
+            <%= session.last_message %>
+          <% else: %>
+            <%- @T('새 상담') %>
+          <% end %>
+        </div>
+      </div>
+      <div class="chat-item-status">
+        <span class="status-indicator status-<%- session.status || 'active' %>"></span>
+      </div>
+    </div>
+  <% end %>
+<% else: %>
+  <div class="text-center text-muted" style="padding: 20px;">
+    <%- @T('활성 상담이 없습니다.') %>
+  </div>
+<% end %>

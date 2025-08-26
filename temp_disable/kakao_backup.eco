@@ -1,0 +1,56 @@
+<fieldset>
+  <div class="well">
+    <h2><%- @T('카카오톡 상담톡 연동 설정') %></h2>
+    <p><%- @T('상담톡 API 서버와 연동하여 실시간 채팅 상담을 제공합니다.') %></p>
+  </div>
+
+  <form role="form" class="js-form">
+    <div class="form-group">
+      <label class="control-label"><%- @T('상담톡 연동 사용') %></label>
+      <div class="u-positionOrigin">
+        <div class="checkbox-replacement checkbox-replacement--inline">
+          <label class="checkbox-replacement-label">
+            <input name="integration" type="checkbox" value="true" class="js-switch" <%- 'checked' if @integration_enabled %>/>
+            <span class="checkbox-replacement-item"></span>
+            <%- @T('카카오톡 상담톡 연동 활성화') %>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="control-label" for="api_endpoint"><%- @T('상담톡 API 서버 URL') %></label>
+      <input type="url" id="api_endpoint" name="api_endpoint" class="form-control" placeholder="https://your-api-server.com/api" value="<%- @api_endpoint %>" required/>
+      <p class="help-text"><%- @T('상담톡 API 서버의 기본 URL을 입력하세요.') %></p>
+    </div>
+
+    <div class="form-group">
+      <label class="control-label" for="api_token"><%- @T('API 인증 토큰') %></label>
+      <input type="password" id="api_token" name="api_token" class="form-control" placeholder="your-api-token" value="<%- @api_token %>" required/>
+      <p class="help-text"><%- @T('상담톡 API 서버 인증용 토큰입니다.') %></p>
+    </div>
+
+    <div class="form-group">
+      <label class="control-label" for="webhook_token"><%- @T('웹훅 인증 토큰') %></label>
+      <input type="password" id="webhook_token" name="webhook_token" class="form-control" placeholder="webhook-token" value="<%- @webhook_token %>" required/>
+      <p class="help-text"><%- @T('상담톡 서버에서 Zammad로 보내는 웹훅 인증용 토큰입니다.') %></p>
+    </div>
+
+    <div class="form-group">
+      <label class="control-label" for="session_timeout"><%- @T('세션 타임아웃 (분)') %></label>
+      <input type="number" id="session_timeout" name="session_timeout" class="form-control" placeholder="30" min="5" max="1440" value="<%- @session_timeout %>" required/>
+      <p class="help-text"><%- @T('비활성 상담 세션이 자동으로 종료될 시간(분)입니다.') %></p>
+    </div>
+
+    <div class="form-group">
+      <label class="control-label"><%- @T('웹훅 콜백 URL') %></label>
+      <input type="text" class="form-control" value="<%- @callback_url %>" readonly/>
+      <p class="help-text"><%- @T('상담톡 서버에서 이 URL로 웹훅을 보내도록 설정하세요.') %></p>
+    </div>
+
+    <div class="form-group">
+      <button type="button" class="btn js-test-connection"><%- @T('연결 테스트') %></button>
+      <button type="submit" class="btn btn--primary"><%- @T('설정 저장') %></button>
+    </div>
+  </form>
+</fieldset>
