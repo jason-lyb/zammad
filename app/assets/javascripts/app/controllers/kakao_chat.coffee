@@ -17,8 +17,9 @@ class KakaoChat extends App.ControllerSubContent
         return
     )
     
-    # console.log 'KakaoChat about to call render...'
-    @render()
+    # 세션 목록 로드
+    @loadSessions()
+    
     # console.log 'KakaoChat constructor completed'
 
   # 네비게이션 표시 여부 결정
@@ -48,36 +49,171 @@ class KakaoChat extends App.ControllerSubContent
       # console.log 'Returning default true'
       return true
 
-  render: =>
-    # console.log 'KakaoChat render called'
-    # console.log 'KakaoChat proceeding with render...'
+  # 카카오톡 상담 세션 목록 로드
+  loadSessions: =>
+    console.log 'Loading KakaoTalk chat sessions...'
     
-    # 간단한 HTML로 테스트
-    html = '''
-      <div class="page-header">
-        <h1>카카오톡 상담</h1>
-      </div>
+    App.Ajax.request(
+      id: 'kakao_chat_sessions'
+      type: 'GET'
+      url: "#{App.Config.get('api_path')}/kakao_chat/sessions"
+      success: (data) =>
+        console.log 'Sessions loaded:', data
+        @sessions = data.sessions || []
+        @render()
+      error: (xhr, status, error) =>
+        console.error 'Failed to load sessions:', error
+        @sessions = []
+        @render()
+    )
+
+  # 클래스 내부에 헬퍼 메서드 추가
+  formatTime: (timeString) ->
+    return '-' unless timeString
+    
+    try
+      # "2025-08-26 10:15:59.726933" → "2025-08-26T10:15:59.726"
+      isoTime = timeString.replace(" ", "T").replace(/(\.\d{3})\d*/, "$1")
       
-      <div class="page-content">
-        <div class="box">
-          <div class="empty-content">
-            <div class="empty-content-icon">
-              <svg class="icon icon-chat">
-                <use xlink:href="assets/images/icons.svg#icon-chat"></use>
-              </svg>
-            </div>
-            <h3>내용 없음</h3>
-            <p>아직 카카오톡 상담 내용이 없습니다.</p>
+      # Zammad의 시간 포맷 함수 사용
+      App.i18n.timeFormat(new Date(isoTime))
+    catch error
+      console.error 'Time formatting error:', error, timeString
+      return timeString
+
+
+  render: =>
+    console.log 'KakaoChat render called with sessions:', @sessions?.length || 0
+    
+    if !@sessions
+      # 로딩 중일 때
+      html = '''
+        <div class="main flex vertical">
+          <h2 class="logotype">카카오톡 상담</h2>
+          <div class="loading icon"></div>
+          <div class="center">세션 목록을 불러오는 중...</div>
+        </div>
+      '''
+    else if @sessions.length == 0
+      # 세션이 없을 때
+      html = '''
+        <div class="main flex vertical">
+          <h2 class="logotype">카카오톡 상담</h2>
+          <div class="hero-unit">
+            <h1>진행 중인 상담이 없습니다</h1>
+            <p>새로운 카카오톡 상담 요청을 기다리고 있습니다.</p>
           </div>
         </div>
-      </div>
-    '''
-    
-    # console.log 'KakaoChat HTML content prepared:', html.length, 'characters'
-    # console.log 'KakaoChat @el element:', @el
+      '''
+    else
+      # 세션 목록이 있을 때 - Zammad 표준 테이블 레이아웃
+      # 데이터 필드명 수정
+      sessionsList = @sessions.map((session) =>
+        statusClass = switch session.status
+          when 'active' then 'success'
+          when 'waiting' then 'warning' 
+          when 'ended' then 'neutral'
+          when 'transferred' then 'info'
+          else 'neutral'
+               
+        unreadBadge = if session.unread_count > 0
+          "<span class='badge badge-danger'>#{session.unread_count}</span>"
+        else
+          ""
+        
+        agentInfo = if session.agent_name
+          session.agent_name
+        else
+          "미배정"
+        
+        """
+        <tr class="session-row" data-session-id="#{session.session_id}" data-id="#{session.id}">
+          <td>
+            <strong>#{session.customer_name}</strong> #{unreadBadge}
+            <br>
+            <small class="text-muted">#{session.session_id}</small>
+          </td>
+          <td>
+            <span class="label label-#{statusClass}">#{@getStatusText(session.status)}</span>
+          </td>
+          <td>
+            <div class="last-message">
+              #{if session.last_message_content then App.Utils.textCleanup(session.last_message_content, 50) else '메시지 없음'}
+            </div>
+            <small class="text-muted">
+              발신: #{if session.last_message_sender == 'customer' then '고객' else if session.last_message_sender == 'agent' then '상담원' else '시스템'}
+            </small>
+          </td>
+          <td>#{agentInfo}</td>
+          <td>
+            #{@humanTime(session.last_message_at)}
+          </td>
+        </tr>
+        """
+      ).join('')
+      
+      html = """
+        <div class="main">
+          <div class="header">
+            <div class="header-title">
+              <h1>카카오톡 상담 <small>(#{@sessions.length}개 세션)</small></h1>
+            </div>
+            <div class="header-button">
+              <div class="btn btn--action js-refresh" title="새로고침">
+                새로고침
+              </div>
+            </div>
+          </div>
+          
+          <div class="content">
+            <div class="table-overview">
+              <table class="table table-striped table-hover">
+                <thead>
+                  <tr>
+                    <th style="width: 200px;">고객</th>
+                    <th style="width: 100px;">상태</th>
+                    <th>마지막 메시지</th>
+                    <th style="width: 120px;">담당자</th>
+                    <th style="width: 160px;">시간</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  #{sessionsList}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      """
     
     @el.html(html)
-    # console.log 'HTML rendered to element. Element content:', @el.html().length, 'characters'
+    
+    # 이벤트 바인딩
+    @bindEvents()
+
+  # 이벤트 바인딩
+  bindEvents: =>
+    # 세션 행 클릭 시 상세 페이지로 이동
+    @el.on('click', '.session-row', (e) =>
+      sessionId = $(e.currentTarget).data('session-id')
+      console.log 'session click', sessionId      
+      App.Router.navigate("#kakao_chat/#{sessionId}")
+    )
+    
+    # 새로고침 버튼
+    @el.one('click', '.js-refresh', (e) =>
+      e.preventDefault()
+      @loadSessions()
+    )
+    
+  # 상태 텍스트 변환 - 새로운 상태에 맞게 수정
+  getStatusText: (status) ->
+    switch status
+      when 'active' then '진행중'
+      when 'waiting' then '대기중'
+      when 'ended' then '완료'
+      when 'transferred' then '이관됨'
+      else '알 수 없음'
 
 # App 네임스페이스에 즉시 등록
 App.KakaoChat = KakaoChat
@@ -95,7 +231,7 @@ class KakaoChatShow extends App.ControllerSubContent
     # console.log 'KakaoChatShow render called with chat_id:', chat_id
     @html """
       <div class="page-header">
-        <h1>카카오톡 상담 - #{chat_id}</h1>
+        <div class="page-header-title"><h1>카카오톡 상담 - #{chat_id}</h1></div>
       </div>
       
       <div class="page-content">

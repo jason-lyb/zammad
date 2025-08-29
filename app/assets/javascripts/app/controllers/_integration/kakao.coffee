@@ -43,11 +43,11 @@ class Kakao extends App.ControllerIntegrationBase
       App.Setting.set(@featureIntegration, value)
       # console.log 'Setting saved successfully'
       
-      # 성공 알림과 함께 네비게이션 실시간 업데이트
-      # if value
-      #  message = __('카카오톡 상담톡이 활성화되었습니다. 네비게이션 바에 메뉴가 표시됩니다.')
-      # else
-      #  message = __('카카오톡 상담톡이 비활성화되었습니다. 네비게이션 바에서 메뉴가 사라집니다.')
+      #성공 알림과 함께 네비게이션 실시간 업데이트
+      if value
+        message = __('카카오톡 상담톡이 활성화되었습니다. 네비게이션 바에 메뉴가 표시됩니다.')
+      else
+        message = __('카카오톡 상담톡이 비활성화되었습니다. 네비게이션 바에서 메뉴가 사라집니다.')
       
       @notify(
         type: 'success'
