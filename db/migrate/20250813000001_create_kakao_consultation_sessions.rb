@@ -45,6 +45,8 @@ class CreateKakaoConsultationSessions < ActiveRecord::Migration[6.1]
         t.text :kakao_attachments, comment: '카카오톡 첨부파일 정보 (JSON)'
         t.datetime :sent_at, comment: '발송 시간'
         t.boolean :is_read, default: false, comment: '읽음 여부'
+        t.boolean :read_by_agent, default: false, comment: '상담원이 읽었는지 여부'
+        t.datetime :read_at, comment: '읽은 시간'
         t.text :preferences, comment: '추가 설정 정보 (JSON)'
         
         t.timestamps
@@ -54,6 +56,7 @@ class CreateKakaoConsultationSessions < ActiveRecord::Migration[6.1]
         t.index :sender_id
         t.index :sent_at
         t.index :is_read
+        t.index :read_by_agent
       end
     end
 

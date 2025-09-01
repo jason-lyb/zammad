@@ -14,6 +14,8 @@ class KakaoConsultationMessage < ApplicationModel
 
   before_create :set_sent_at
   after_create :broadcast_new_message, if: -> { sender_type == 'customer' }
+  after_create :update_navigation_counter, if: -> { sender_type == 'customer' }
+  after_update :update_navigation_counter, if: :saved_change_to_is_read?
 
   def self.unread_by_agent
     where(sender_type: 'customer', is_read: false)
@@ -88,5 +90,15 @@ class KakaoConsultationMessage < ApplicationModel
         }
       }
     )
+  end
+
+  def update_navigation_counter
+    # Load navigation helper
+    require Rails.root.join('app/controllers/concerns/kakao_consultation_navigation')
+    
+    # Broadcast counter update to all agents
+    KakaoConsultationNavigation.broadcast_counter_update
+  rescue => e
+    Rails.logger.error "Failed to update KakaoConsultation navigation counter: #{e.message}"
   end
 end

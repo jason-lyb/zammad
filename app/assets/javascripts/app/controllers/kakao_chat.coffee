@@ -194,11 +194,29 @@ class KakaoChat extends App.ControllerSubContent
   # 상태 텍스트 변환 - 새로운 상태에 맞게 수정
   getStatusText: (status) ->
     switch status
-      when 'active' then '진행중'
       when 'waiting' then '대기중'
-      when 'ended' then '완료'
+      when 'active' then '진행중'
+      when 'ended' then '종료됨'
       when 'transferred' then '이관됨'
       else '알 수 없음'
+
+  # 네비게이션 카운터 기능 추가
+  counter: =>
+    count = 0
+    console.log 'KakaoChat counter() called, sessions:', @sessions?.length || 0
+    if @sessions && Array.isArray(@sessions)
+      for session in @sessions
+        # waiting 상태: 새로운 상담 요청으로 카운트 1
+        # active 상태: 실제 읽지 않은 메시지 개수만큼 카운트
+        if session.status == 'waiting'
+          count += 1  # waiting은 항상 1개로 카운트
+          console.log "Session #{session.id}: status=#{session.status}, adding 1 (new consultation)"
+        else if session.status == 'active' && session.unread_count > 0
+          sessionCount = parseInt(session.unread_count) || 0
+          count += sessionCount
+          console.log "Session #{session.id}: status=#{session.status}, unread_count=#{session.unread_count}, adding #{sessionCount}"
+    console.log 'Final counter value:', count
+    count
 
 # App 네임스페이스에 즉시 등록
 App.KakaoChat = KakaoChat

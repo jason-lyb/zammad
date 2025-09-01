@@ -18,6 +18,7 @@ class KakaoConsultationSession < ActiveRecord::Base
 
   before_create :set_started_at
   after_update :update_stats, if: :saved_change_to_status?
+  after_update :update_navigation_counter, if: :saved_change_to_unread_count?
 
   # JSON 필드 accessor
   def customer_info_data
@@ -164,6 +165,16 @@ class KakaoConsultationSession < ActiveRecord::Base
       session_duration: duration_in_seconds,
       response_time_avg: calculate_avg_response_time
     )
+  end
+
+  def update_navigation_counter
+    # Load navigation helper
+    require Rails.root.join('app/controllers/concerns/kakao_consultation_navigation')
+    
+    # Broadcast counter update to all agents
+    KakaoConsultationNavigation.broadcast_counter_update
+  rescue => e
+    Rails.logger.error "Failed to update KakaoConsultation navigation counter: #{e.message}"
   end
 
   def update_final_stats

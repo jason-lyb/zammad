@@ -10,7 +10,6 @@ Zammad::Application.routes.draw do
     get    '/kakao_chat/sessions/:id/messages',       to: 'kakao_chat#messages'
     post   '/kakao_chat/sessions/:id/messages',       to: 'kakao_chat#send_message'
     post   '/kakao_chat/sessions/:id/end',           to: 'kakao_chat#end_session'
-    get    '/kakao_chat/unread_count',               to: 'kakao_chat#unread_count'
     
     # 카카오톡에서 메시지 수신 (Webhook)
     post   '/kakao_chat/message',                     to: 'kakao_chat#receive_message'

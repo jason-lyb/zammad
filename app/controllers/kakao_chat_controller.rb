@@ -42,38 +42,6 @@ class KakaoChatController < ApplicationController
     }
   end
 
-  # 카카오톡 상담 전체 읽지 않은 메시지 수 (네비게이션 바용)
-  def unread_count
-    return render json: { error: 'KakaoTalk integration not enabled' }, status: :forbidden unless kakao_integration_enabled?
-
-    # 현재 사용자가 상담원인지 확인
-    return render json: { error: 'Access denied' }, status: :forbidden unless current_user.permissions?(['chat.agent'])
-
-    # 대기중 및 진행중인 세션의 총 unread 수
-    total_unread = KakaoConsultationSession.joins(:kakao_consultation_messages)
-                                          .where(status: ['waiting', 'active'])
-                                          .where(kakao_consultation_messages: { sender_type: 'customer', is_read: false })
-                                          .sum(:unread_count)
-
-    # 세션별 unread 수도 함께 반환 (상세 정보용)
-    session_unreads = KakaoConsultationSession.where(status: ['waiting', 'active'])
-                                             .where('unread_count > 0')
-                                             .pluck(:id, :session_id, :unread_count, :status)
-                                             .map do |id, session_id, unread_count, status|
-      {
-        id: id,
-        session_id: session_id,
-        unread_count: unread_count,
-        status: status
-      }
-    end
-
-    render json: {
-      total_unread: total_unread,
-      sessions: session_unreads
-    }
-  end
-
   # 특정 카카오톡 상담 세션의 메시지 목록
   def messages
     session = find_session
@@ -90,7 +58,13 @@ class KakaoChatController < ApplicationController
     # 고객이 보낸 메시지들을 읽음 처리 (현재 사용자가 담당 상담원인 경우)
     if session.agent == current_user
       unread_messages = messages.where(sender_type: 'customer', read_by_agent: false)
-      unread_messages.update_all(read_by_agent: true, read_at: Time.current)
+      if unread_messages.any?
+        unread_messages.update_all(read_by_agent: true, read_at: Time.current)
+        
+        # 세션의 unread_count를 0으로 리셋
+        session.update!(unread_count: 0)
+        Rails.logger.info "Reset unread_count for session #{session.session_id} to 0"
+      end
     end
 
     messages_data = messages.map do |message|
@@ -587,18 +561,18 @@ class KakaoChatController < ApplicationController
 
   # 세션 정보 업데이트
   def update_session_info(session, message)
-    # 읽지 않은 메시지 수 계산 (고객 메시지만)
-    unread_count = session.kakao_consultation_messages
-                         .where(sender_type: 'customer', is_read: false)
-                         .count
-    
     # 세션 정보 업데이트
     update_data = {
       last_message_content: message.content,
       last_message_sender: message.sender_type,
-      last_message_at: message.sent_at,
-      unread_count: unread_count
+      last_message_at: message.sent_at
     }
+    
+    # 고객 메시지인 경우 unread_count 증가
+    if message.sender_type == 'customer'
+      session.increment!(:unread_count)
+      Rails.logger.info "Incremented unread_count for session #{session.session_id}: #{session.unread_count}"
+    end
     
     # 첫 메시지인 경우 started_at 설정
     if session.started_at.nil?
@@ -607,7 +581,7 @@ class KakaoChatController < ApplicationController
     
     session.update!(update_data)
     
-    Rails.logger.info "Updated session #{session.session_id}: unread_count=#{unread_count}"
+    Rails.logger.info "Updated session #{session.session_id}"
   end
 
   # 통계 정보 업데이트
