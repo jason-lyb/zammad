@@ -16,7 +16,7 @@ class KakaoConsultationMessage < ApplicationModel
   after_create :broadcast_new_message, if: -> { sender_type == 'customer' }
 
   def self.unread_by_agent
-    where(sender_type: 'customer', read_by_agent: false)
+    where(sender_type: 'customer', is_read: false)
   end
 
   def self.recent
@@ -24,13 +24,13 @@ class KakaoConsultationMessage < ApplicationModel
   end
 
   def mark_as_read!
-    update!(read_by_agent: true, read_at: Time.zone.now) if sender_type == 'customer'
+    update!(is_read: true) if sender_type == 'customer'
   end
 
   def sender_name
     case sender_type
     when 'customer'
-      kakao_consultation.customer.fullname
+      kakao_consultation_session.customer_name || '고객'
     when 'agent'
       sender_user&.fullname || 'Agent'
     when 'system'
@@ -46,14 +46,37 @@ class KakaoConsultationMessage < ApplicationModel
     preferences['message_type'] = value
   end
 
+  def attachments_data
+    return [] if kakao_attachments.blank? || kakao_attachments == '[]'
+    
+    parsed = JSON.parse(kakao_attachments)
+    return [] if parsed.blank?
+    
+    parsed
+  rescue JSON::ParserError
+    []
+  end
+
+  def attachments_data=(data)
+    if data.nil? || data.empty?
+      self.kakao_attachments = '[]'
+    else
+      self.kakao_attachments = data.to_json
+    end
+  end
+
   private
+
+  def set_sent_at
+    self.sent_at ||= Time.zone.now
+  end
 
   def broadcast_new_message
     Sessions.broadcast(
       {
         event: 'new_kakao_message',
         data: {
-          consultation_id: kakao_consultation.id,
+          consultation_id: kakao_consultation_session.id,
           message: {
             id: id,
             content: content,

@@ -3,7 +3,7 @@
 # Table name: kakao_consultation_stats
 #
 class KakaoConsultationStats < ActiveRecord::Base
-  belongs_to :kakao_consultation_session
+  belongs_to :kakao_consultation_session, foreign_key: 'kakao_consultation_session_id'
 
   validates :total_messages, :customer_messages, :agent_messages, numericality: { greater_than_or_equal_to: 0 }
   validates :response_time_avg, :session_duration, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true

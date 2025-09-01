@@ -204,3 +204,72 @@
     flex-direction: column;
   }
 }
+
+/* 메시지 상세 페이지 스타일 */
+.messages-container {
+  .message-item {
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    max-width: 80%;
+    
+    &.customer {
+      background-color: #e3f2fd;
+      margin-left: auto;
+      margin-right: 0;
+      
+      .message-header {
+        text-align: right;
+      }
+    }
+    
+    &.agent {
+      background-color: #f5f5f5;
+      margin-left: 0;
+      margin-right: auto;
+    }
+    
+    .message-header {
+      margin-bottom: 5px;
+      
+      strong {
+        font-size: 14px;
+      }
+      
+      small {
+        margin-left: 8px;
+        font-size: 12px;
+      }
+    }
+    
+    .message-content {
+      font-size: 14px;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+  }
+}
+
+.message-form {
+  .form-group:last-child {
+    margin-bottom: 0;
+    text-align: right;
+  }
+  
+  .js-message-content {
+    resize: vertical;
+    min-height: 80px;
+  }
+}
+
+/* 세션 정보 테이블 스타일 */
+.dl-horizontal {
+  dt {
+    width: 100px;
+    text-align: left;
+  }
+  
+  dd {
+    margin-left: 110px;
+  }
+}

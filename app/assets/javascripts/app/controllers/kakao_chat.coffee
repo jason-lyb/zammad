@@ -51,39 +51,24 @@ class KakaoChat extends App.ControllerSubContent
 
   # 카카오톡 상담 세션 목록 로드
   loadSessions: =>
-    console.log 'Loading KakaoTalk chat sessions...'
+    # console.log 'Loading KakaoTalk chat sessions...'
     
     App.Ajax.request(
       id: 'kakao_chat_sessions'
       type: 'GET'
       url: "#{App.Config.get('api_path')}/kakao_chat/sessions"
       success: (data) =>
-        console.log 'Sessions loaded:', data
+        # console.log 'Sessions loaded:', data
         @sessions = data.sessions || []
         @render()
       error: (xhr, status, error) =>
-        console.error 'Failed to load sessions:', error
+        # console.error 'Failed to load sessions:', error
         @sessions = []
         @render()
     )
 
-  # 클래스 내부에 헬퍼 메서드 추가
-  formatTime: (timeString) ->
-    return '-' unless timeString
-    
-    try
-      # "2025-08-26 10:15:59.726933" → "2025-08-26T10:15:59.726"
-      isoTime = timeString.replace(" ", "T").replace(/(\.\d{3})\d*/, "$1")
-      
-      # Zammad의 시간 포맷 함수 사용
-      App.i18n.timeFormat(new Date(isoTime))
-    catch error
-      console.error 'Time formatting error:', error, timeString
-      return timeString
-
-
   render: =>
-    console.log 'KakaoChat render called with sessions:', @sessions?.length || 0
+    # console.log 'KakaoChat render called with sessions:', @sessions?.length || 0
     
     if !@sessions
       # 로딩 중일 때
@@ -197,7 +182,7 @@ class KakaoChat extends App.ControllerSubContent
     @el.on('click', '.session-row', (e) =>
       sessionId = $(e.currentTarget).data('session-id')
       console.log 'session click', sessionId      
-      App.Router.navigate("#kakao_chat/#{sessionId}")
+      @navigate("#kakao_chat/#{sessionId}")
     )
     
     # 새로고침 버튼
@@ -217,30 +202,6 @@ class KakaoChat extends App.ControllerSubContent
 
 # App 네임스페이스에 즉시 등록
 App.KakaoChat = KakaoChat
-
-class KakaoChatShow extends App.ControllerSubContent
-  header: __('카카오톡 상담 상세')
-  
-  constructor: ->
-    super
-    # console.log 'KakaoChatShow constructor called'
-    @render()
-
-  render: =>
-    chat_id = @params.chat_id
-    # console.log 'KakaoChatShow render called with chat_id:', chat_id
-    @html """
-      <div class="page-header">
-        <div class="page-header-title"><h1>카카오톡 상담 - #{chat_id}</h1></div>
-      </div>
-      
-      <div class="page-content">
-        <div class="box">
-          <p>채팅 ID: #{chat_id}</p>
-          <p>상세 내용을 여기에 표시합니다.</p>
-        </div>
-      </div>
-    """
 
 # Router 클래스 (TaskManager 방식)
 class KakaoChatRouter extends App.ControllerPermanent
@@ -262,9 +223,6 @@ class KakaoChatRouter extends App.ControllerPermanent
     )
     # console.log 'KakaoChatRouter TaskManager.execute completed'
 
-# App 네임스페이스에 추가 등록
-App.KakaoChatShow = KakaoChatShow
-
 # TaskManager permanentTask 등록 (설정 상태는 featureActive에서 확인)
 App.Config.set('KakaoChat', {
   controller: 'KakaoChat'
@@ -273,6 +231,5 @@ App.Config.set('KakaoChat', {
 
 # Router 방식으로 등록
 App.Config.set('kakao_chat', KakaoChatRouter, 'Routes')
-App.Config.set('kakao_chat/:chat_id', KakaoChatShow, 'Routes')
 
 # console.log 'KakaoChat controllers loaded successfully'

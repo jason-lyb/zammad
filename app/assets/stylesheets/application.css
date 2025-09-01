@@ -13,6 +13,7 @@
  *= require ./highlighter-github.css
  *= require ./jquery.enableObjectResizingShim.css
  *= require ./zammad.scss
+ *= require ./kakao_navigation.scss
  *
  *= require_tree ./addons/
  *= require_tree ./custom/

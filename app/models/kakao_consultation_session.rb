@@ -3,12 +3,12 @@
 # Table name: kakao_consultation_sessions
 #
 class KakaoConsultationSession < ActiveRecord::Base
-  has_many :kakao_consultation_messages, foreign_key: 'kakao_consultation_id', dependent: :destroy
+  has_many :kakao_consultation_messages, foreign_key: 'kakao_consultation_session_id', dependent: :destroy
   has_one :kakao_consultation_stats, dependent: :destroy
   belongs_to :agent, class_name: 'User', foreign_key: 'agent_id', optional: true
 
   validates :session_id, presence: true, uniqueness: true
-  validates :customer_id, presence: true
+  validates :user_key, presence: true
   validates :status, inclusion: { in: %w[waiting active ended transferred] }
 
   scope :active, -> { where(status: ['waiting', 'active']) }
