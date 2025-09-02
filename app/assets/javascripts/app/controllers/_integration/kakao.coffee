@@ -169,18 +169,7 @@ App.Config.set(
   'NavBarIntegrations'
 )
 
-# 기존 KakaoChat 컨트롤러에 카운터 기능을 추가했으므로 
-# 메인 네비게이션 바 설정을 기존 KakaoChat을 참조하도록 수정
-App.Config.set('KakaoChat', {
-  prio: 1250,
-  parent: '',
-  name: __('카카오톡 상담'),
-  target: '#kakao_chat',
-  key: 'KakaoChat',  # 기존 KakaoChat TaskManager 키 사용
-  permission: ['ticket.agent'],
-  shown: true,
-  class: 'chat',
-  counter: true  # 카운터 활성화
-}, 'NavBar')
+# NavBar 설정은 메인 kakao_chat.coffee에서 처리하므로 여기서는 제거
+# 중복 등록으로 인한 하이라이트 문제 방지
 
-console.log 'KakaoChat navigation config loaded'
+console.log 'KakaoChat integration config loaded'

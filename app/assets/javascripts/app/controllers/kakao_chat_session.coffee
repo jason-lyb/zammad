@@ -74,6 +74,9 @@ class KakaoChatSession extends App.ControllerSubContent
   render: =>
     console.log 'Rendering session view'
     
+    # highlight navbar - 네비게이션 하이라이트 적용
+    @navupdate('#kakao_chat')
+    
     if not @session
       @renderLoading()
       return
@@ -91,14 +94,19 @@ class KakaoChatSession extends App.ControllerSubContent
       else
         '시간 없음'
       
+      # 상담원 메시지는 오른쪽 정렬, 나머지는 왼쪽 정렬
+      alignmentClass = if message.sender_type is 'agent' then 'message-right' else 'message-left'
+      
       """
-      <div class="message message-#{senderClass}">
-        <div class="message-header">
-          <strong>#{message.sender_name || message.sender_type}</strong>
-          <span class="time">#{timeStr}</span>
-        </div>
-        <div class="message-content">
-          #{App.Utils.htmlEscape(message.content)}
+      <div class="message message-#{senderClass} #{alignmentClass}">
+        <div class="message-bubble">
+          <div class="message-header">
+            <strong>#{message.sender_name || message.sender_type}</strong>
+            <span class="time">#{timeStr}</span>
+          </div>
+          <div class="message-content">
+            #{App.Utils.htmlEscape(message.content)}
+          </div>
         </div>
       </div>
       """
@@ -132,22 +140,24 @@ class KakaoChatSession extends App.ControllerSubContent
               </span>
             </div>
           </div>
-          <div class="header-button">
-            <div class="btn btn--action js-back" title="목록으로">
-              ← 목록
+          <div class="header-button" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="btn btn--action btn--header js-back" title="목록으로">
+                ← 목록
             </div>
-            #{if @session.status in ['active', 'waiting'] then '<div class="btn btn--danger js-end-session" title="상담 종료">상담 종료</div>' else ''}
+            #{if @session.status in ['active', 'waiting'] then '<div class="btn btn--danger btn--header js-end-session" title="상담 종료">상담 종료</div>' else ''}
           </div>
         </div>
         
         <div class="content">
           <div class="session-details">
-            <div class="customer-info">
+            <div class="customer-info customer-info-row">
               <h3>고객 정보</h3>
-              <p><strong>이름:</strong> #{@session.customer_name}</p>
-              <p><strong>세션 ID:</strong> #{@session.session_id}</p>
-              <p><strong>시작 시간:</strong> #{if @session.started_at then @humanTime(@session.started_at) else '없음'}</p>
-              <p><strong>진행 시간:</strong> #{@session.duration || '0분'}</p>
+              <div class="customer-info-horizontal">
+                <span><strong>이름:</strong> #{@session.customer_name}</span>
+                <span><strong>세션 ID:</strong> #{@session.session_id}</span>
+                <span><strong>시작 시간:</strong> #{if @session.started_at then @humanTime(@session.started_at) else '없음'}</span>
+                <span><strong>진행 시간:</strong> #{@session.duration || '0분'}</span>
+              </div>
             </div>
             
             #{if @session.status in ['active', 'waiting'] then @renderAgentAssignment() else ''}
@@ -193,13 +203,13 @@ class KakaoChatSession extends App.ControllerSubContent
     """
     <div class="agent-assignment">
       <h3>담당자 관리</h3>
-      <div class="form-group">
+      <div class="form-group horizontal-layout">
         <label>담당 상담원:</label>
         <select class="form-control js-agent-select">
           <option value="">담당자 선택</option>
           #{agentOptions}
         </select>
-        <button class="btn btn--secondary js-assign-agent" style="margin-top: 5px;">담당자 변경</button>
+        <button class="btn btn--secondary js-assign-agent">담당자 변경</button>
       </div>
     </div>
     """

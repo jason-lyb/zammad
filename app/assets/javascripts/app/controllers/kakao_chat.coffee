@@ -7,11 +7,21 @@ class KakaoChat extends App.ControllerSubContent
     # console.log 'KakaoChat super constructor completed'
     # console.log 'KakaoChat @el after super:', @el
     
+    # 네비게이션 하이라이트 즉시 적용
+    @forceNavHighlight()
+    
+    # TaskManager 이벤트 바인딩으로 하이라이트 유지
+    @controllerBind('task:show', (data) =>
+      if data.key is 'KakaoChat'
+        @forceNavHighlight()
+    )
+    
     # 설정 변경 시 메뉴 렌더링 이벤트 바인딩
     @controllerBind('menu:render', =>
       # featureActive가 false이면 아무것도 하지 않음
       try
         return if !@featureActive()
+        @forceNavHighlight()
       catch error
         # console.log 'Error in menu:render featureActive check:', error
         return
@@ -27,6 +37,23 @@ class KakaoChat extends App.ControllerSubContent
     @loadSessions()
     
     # console.log 'KakaoChat constructor completed'
+
+  # 네비게이션 하이라이트 강제 적용 메서드
+  forceNavHighlight: =>
+    @navupdate('#kakao_chat')
+    $('.js-menu .is-active').removeClass('is-active')
+    $('.js-menu [href="#kakao_chat"]').addClass('is-active')
+    
+    # 여러 번 지연 적용으로 확실하게 보장
+    @delay(=>
+      $('.js-menu .is-active').removeClass('is-active')
+      $('.js-menu [href="#kakao_chat"]').addClass('is-active')
+    , 10, 'force_highlight_1')
+    
+    @delay(=>
+      $('.js-menu .is-active').removeClass('is-active')
+      $('.js-menu [href="#kakao_chat"]').addClass('is-active')
+    , 100, 'force_highlight_2')
 
   # 네비게이션 표시 여부 결정
   featureActive: ->
@@ -95,6 +122,18 @@ class KakaoChat extends App.ControllerSubContent
     
     # 전역 접근을 위해 window에 인스턴스 저장 (개발/테스트용)
     window.kakaoChat = @
+    
+    # 강력한 네비게이션 하이라이트 적용
+    @forceNavHighlight()
+    
+    # 추가 지연 적용으로 확실하게 보장
+    @delay(=>
+      @forceNavHighlight()
+    , 200, 'render_highlight_1')
+    
+    @delay(=>
+      @forceNavHighlight()
+    , 500, 'render_highlight_2')
     
     if !@sessions
       # 로딩 중일 때
@@ -310,6 +349,22 @@ class KakaoChatRouter extends App.ControllerPermanent
 
     # 인증 확인
     @authenticateCheckRedirect()
+    
+    # 네비게이션 하이라이트 강제 적용 (여러 번)
+    @navupdate('#kakao_chat')
+    $('.js-menu .is-active').removeClass('is-active')
+    $('.js-menu [href="#kakao_chat"]').addClass('is-active')
+    
+    # TaskManager 실행 후에도 하이라이트 유지
+    @delay(=>
+      $('.js-menu .is-active').removeClass('is-active')
+      $('.js-menu [href="#kakao_chat"]').addClass('is-active')
+    , 100, 'router_highlight_1')
+    
+    @delay(=>
+      $('.js-menu .is-active').removeClass('is-active')
+      $('.js-menu [href="#kakao_chat"]').addClass('is-active')
+    , 300, 'router_highlight_2')
 
     # console.log 'KakaoChatRouter about to execute TaskManager...'
     # TaskManager로 실행 - 컨트롤러를 문자열로 참조
@@ -330,5 +385,18 @@ App.Config.set('KakaoChat', {
 
 # Router 방식으로 등록
 App.Config.set('kakao_chat', KakaoChatRouter, 'Routes')
+
+# NavBar 메뉴 항목 등록 - CTI 스타일과 동일하게 설정
+App.Config.set('KakaoChat', { 
+  prio: 1250, 
+  parent: '', 
+  name: __('카카오톡 상담'), 
+  target: '#kakao_chat', 
+  key: 'KakaoChat', 
+  shown: true, 
+  permission: ['ticket.agent'], 
+  class: 'chat',
+  counter: true
+}, 'NavBar')
 
 # console.log 'KakaoChat controllers loaded successfully'

@@ -1,167 +1,268 @@
-/* 카카오톡 상담 세션 상세 페이지 스타일 */
+/* 카카오톡 상담 세션 상세 페이지 - Zammad 스타일 */
 
 .session-details {
-  background: #f8f9fa;
-  padding: 20px;
-  margin-bottom: 20px;
-  border-radius: 4px;
-  border: 1px solid #dee2e6;
-}
-
-.customer-info h3 {
+  background: var(--background-secondary);
+  padding: 12px;
   margin-bottom: 15px;
-  color: #495057;
-  font-size: 16px;
-  font-weight: 600;
+  border-radius: 3px;
+  border: 1px solid var(--border);
 }
 
-.customer-info p {
-  margin: 8px 0;
-  color: #6c757d;
+/* 고객 정보 섹션 */
+.customer-info {
+  margin-bottom: 12px;
+  
+  h3 {
+    margin-bottom: 6px;
+    color: var(--text-normal);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* 기본 세로 레이아웃 */
+  p {
+    margin: 4px 0;
+    color: var(--text-muted);
+  }
+
+  /* 가로 레이아웃 (customer-info-row 클래스 사용) */
+  &.customer-info-row {
+    .customer-info-horizontal {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      
+      span {
+        color: var(--text-muted);
+        font-size: 13px;
+        
+        strong {
+          color: var(--text-normal);
+          font-weight: 500;
+        }
+      }
+    }
+  }
 }
 
 /* 담당자 배정 섹션 */
 .agent-assignment {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #dee2e6;
-}
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 
-.agent-assignment h3 {
-  margin-bottom: 15px;
-  color: #495057;
-  font-size: 16px;
-  font-weight: 600;
-}
+  h3 {
+    margin-bottom: 6px;
+    color: var(--text-normal);
+    font-size: 14px;
+    font-weight: 500;
+  }
 
-.agent-assignment .form-group {
-  margin-bottom: 15px;
-}
+  .form-group {
+    margin-bottom: 8px;
 
-.agent-assignment label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-  color: #495057;
-}
+    /* 가로 레이아웃 */
+    &.horizontal-layout {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+  }
 
-.agent-assignment .form-control {
-  width: 100%;
-  max-width: 300px;
-  padding: 8px 12px;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 14px;
-}
+  label {
+    display: block;
+    margin-bottom: 2px;
+    font-weight: normal;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.05em;
 
-.agent-assignment .btn {
-  margin-left: 0;
-}
+    /* 가로 레이아웃에서는 margin-bottom 제거 */
+    .horizontal-layout & {
+      margin-bottom: 0;
+    }
+  }
 
+  .form-control {
+    width: 100%;
+    max-width: 250px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 13px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    transition: border-color 200ms;
+
+    &:focus {
+      border-color: var(--border-highlight);
+      box-shadow: 0 0 0 3px var(--shadow-highlight);
+      outline: none;
+    }
+
+    /* 가로 레이아웃에서는 최소 너비 설정 */
+    .horizontal-layout & {
+      min-width: 120px;
+      flex-shrink: 0;
+    }
+  }
+
+  .btn {
+    margin-left: 0;
+    
+    /* 가로 레이아웃에서는 margin-top 제거 */
+    .horizontal-layout & {
+      margin-top: 0;
+    }
+  }
+}
+/* 메시지 컨테이너 */
 .messages-container {
   margin-top: 20px;
+
+  h3 {
+    margin-bottom: 12px;
+    color: var(--text-normal);
+    font-size: 16px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
 }
 
-.messages-container h3 {
-  margin-bottom: 15px;
-  color: #495057;
-  font-size: 16px;
-  font-weight: 600;
-  border-bottom: 2px solid #e9ecef;
-  padding-bottom: 8px;
-}
-
+/* 메시지 목록 */
 .messages-list {
   max-height: 400px;
   overflow-y: auto;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
   padding: 15px;
-  background: #fff;
+  background: var(--background-primary);
 }
 
 .message {
   margin-bottom: 15px;
-  padding: 12px;
+  display: flex;
+  clear: both;
+
+  &.message-left {
+    justify-content: flex-start;
+    
+    .message-bubble {
+      max-width: 70%;
+      margin-right: auto;
+    }
+  }
+
+  &.message-right {
+    justify-content: flex-end;
+    
+    .message-bubble {
+      max-width: 70%;
+      margin-left: auto;
+    }
+  }
+}
+
+.message-bubble {
+  padding: 8px 10px;
   border-radius: 8px;
-  border-left: 4px solid;
-}
+  border-left: 3px solid;
+  min-width: 200px;
 
-.message-customer {
-  background: #e3f2fd;
-  border-left-color: #2196f3;
-}
+  .message-customer & {
+    background: var(--background-highlight);
+    border-left-color: var(--highlight);
+  }
 
-.message-agent {
-  background: #e8f5e8;
-  border-left-color: #4caf50;
-}
+  .message-agent & {
+    background: var(--background-secondary);
+    border-left-color: var(--supergood-color);
+    border-left: none;
+    border-right: 3px solid var(--supergood-color);
+  }
 
-.message-system {
-  background: #fff3e0;
-  border-left-color: #ff9800;
+  .message-system & {
+    background: var(--background-primary-alt);
+    border-left-color: var(--ok-color);
+  }
 }
 
 .message-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
-}
+  margin-bottom: 4px;
 
-.message-header strong {
-  color: #495057;
-  font-size: 14px;
-}
+  strong {
+    color: var(--text-normal);
+    font-size: 13px;
+    font-weight: 500;
+  }
 
-.message-header .time {
-  color: #6c757d;
-  font-size: 12px;
+  .time {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
 }
 
 .message-content {
-  color: #212529;
-  line-height: 1.5;
+  color: var(--text-normal);
+  line-height: 1.3;
   white-space: pre-wrap;
   word-wrap: break-word;
+  font-size: 14px;
 }
 
 .no-messages {
   text-align: center;
-  color: #6c757d;
+  color: var(--text-muted);
   padding: 40px;
   font-style: italic;
 }
 
+/* 메시지 입력 폼 */
 .message-input-container {
-  margin-top: 30px;
+  margin-top: 20px;
   padding: 20px;
-  background: #f8f9fa;
-  border-radius: 4px;
-  border: 1px solid #dee2e6;
+  background: var(--background-secondary);
+  border-radius: 3px;
+  border: 1px solid var(--border);
+
+  h3 {
+    margin-bottom: 12px;
+    color: var(--text-normal);
+    font-size: 16px;
+    font-weight: 500;
+  }
 }
 
-.message-input-container h3 {
-  margin-bottom: 15px;
-  color: #495057;
-  font-size: 16px;
-  font-weight: 600;
-}
+.message-input-form {
+  textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 12px;
+    font-size: 14px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 200ms;
 
-.message-input-form textarea {
-  width: 100%;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  padding: 12px;
-  font-size: 14px;
-  resize: vertical;
-  min-height: 80px;
-}
+    &:focus {
+      border-color: var(--border-highlight);
+      outline: none;
+      box-shadow: 0 0 0 3px var(--shadow-highlight);
+    }
 
-.message-input-form textarea:focus {
-  border-color: #80bdff;
-  outline: 0;
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    &::placeholder {
+      color: var(--interactive-muted);
+    }
+  }
 }
 
 .form-actions {
@@ -169,6 +270,7 @@
   text-align: right;
 }
 
+/* 세션 정보 */
 .session-info {
   display: flex;
   align-items: center;
@@ -177,12 +279,28 @@
 }
 
 .agent-info {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
+.header-button {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn--header {
+  height: 30px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 /* 반응형 디자인 */
-@media (max-width: 768px) {
+@media screen and (max-width: 767px) {
   .session-details {
     padding: 15px;
   }
@@ -202,6 +320,18 @@
   }
   
   .session-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .customer-info.customer-info-row .customer-info-horizontal {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .agent-assignment .form-group.horizontal-layout {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
