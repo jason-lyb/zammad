@@ -168,13 +168,19 @@ class KakaoConsultationSession < ActiveRecord::Base
   end
 
   def update_navigation_counter
-    # Load navigation helper
-    require Rails.root.join('app/controllers/concerns/kakao_consultation_navigation')
-    
-    # Broadcast counter update to all agents
-    KakaoConsultationNavigation.broadcast_counter_update
-  rescue => e
-    Rails.logger.error "Failed to update KakaoConsultation navigation counter: #{e.message}"
+    # WebSocket으로 카운터 업데이트 브로드캐스트
+    begin
+      notification_data = {
+        event: 'kakao_counter_update',
+        data: {
+          total_unread: calculate_total_unread_count
+        }
+      }
+      Sessions.broadcast(notification_data)
+      Rails.logger.debug "Broadcasted kakao counter update: #{notification_data[:data][:total_unread]}"
+    rescue => e
+      Rails.logger.error "Failed to update KakaoConsultation navigation counter: #{e.message}"
+    end
   end
 
   def update_final_stats
@@ -194,5 +200,9 @@ class KakaoConsultationSession < ActiveRecord::Base
     
     # TODO: 티켓 생성 로직 구현
     # CreateTicketFromKakaoConsultationJob.perform_later(id)
+  end
+
+  def calculate_total_unread_count
+    KakaoConsultationSession.where(status: ['waiting', 'active']).sum(:unread_count)
   end
 end

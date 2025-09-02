@@ -231,12 +231,31 @@ class KakaoChat extends App.ControllerSubContent
     console.log 'Binding WebSocket events for KakaoChat'
     
     # CTI 패턴을 따라 구현
+        # WebSocket 이벤트 바인딩
     @controllerBind('kakao_message_received', (data) =>
-      console.log 'WebSocket: kakao_message_received', data
+      console.log 'Received kakao_message_received event:', data
       delay = =>
         @loadSessions()
-      @delay(delay, 500, 'kakao_message_received_render')
-      'kakao_message_received'
+        @updateNavMenu()
+      @delay(delay, 1000, 'kakao_refresh')
+    )
+    
+    # 메시지 읽음 상태 업데이트
+    @controllerBind('kakao_messages_read', (data) =>
+      console.log 'Messages read event received:', data
+      delay = =>
+        @loadSessions()
+        @updateNavMenu()
+      @delay(delay, 500, 'kakao_read_refresh')
+    )
+    
+    # 상담원 할당 알림
+    @controllerBind('kakao_agent_assigned', (data) =>
+      console.log 'Agent assigned event received:', data
+      delay = =>
+        @loadSessions()
+        @updateNavMenu()
+      @delay(delay, 500, 'kakao_assignment_refresh')
     )
     
     # 카운터 업데이트 이벤트도 처리
@@ -272,12 +291,8 @@ class KakaoChat extends App.ControllerSubContent
     console.log 'KakaoChat counter() called, sessions:', @sessions?.length || 0
     if @sessions and Array.isArray(@sessions)
       for session in @sessions
-        # waiting 상태: 새로운 상담 요청으로 카운트 1
-        # active 상태: 실제 읽지 않은 메시지 개수만큼 카운트
-        if session.status is 'waiting'
-          count += 1  # waiting은 항상 1개로 카운트
-          console.log "Session #{session.id}: status=#{session.status}, adding 1 (new consultation)"
-        else if session.status is 'active' and session.unread_count > 0
+        # waiting, active 상태 모두 실제 읽지 않은 메시지 개수만큼 카운트
+        if (session.status is 'waiting' or session.status is 'active') and session.unread_count > 0
           sessionCount = parseInt(session.unread_count) || 0
           count += sessionCount
           console.log "Session #{session.id}: status=#{session.status}, unread_count=#{session.unread_count}, adding #{sessionCount}"

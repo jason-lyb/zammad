@@ -1,6 +1,7 @@
 # app/models/kakao_consultation_message.rb
 class KakaoConsultationMessage < ApplicationModel
   belongs_to :kakao_consultation_session
+  belongs_to :sender_user, class_name: 'User', foreign_key: 'sender_id', optional: true
 
   validates :content, presence: true
   validates :sender_type, inclusion: { in: %w[customer agent system] }
@@ -30,6 +31,10 @@ class KakaoConsultationMessage < ApplicationModel
   end
 
   def sender_name
+    # 이미 저장된 sender_name이 있으면 사용
+    return read_attribute(:sender_name) if read_attribute(:sender_name).present?
+    
+    # 없으면 동적으로 생성
     case sender_type
     when 'customer'
       kakao_consultation_session.customer_name || '고객'

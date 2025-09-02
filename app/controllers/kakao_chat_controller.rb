@@ -47,10 +47,8 @@ class KakaoChatController < ApplicationController
     return render json: { error: 'KakaoTalk integration not enabled' }, status: :forbidden unless kakao_integration_enabled?
     return render json: { error: 'Access denied' }, status: :forbidden unless current_user.permissions?(['chat.agent'])
 
-    # waiting 상태 세션 수 + active 상태 세션의 unread_count 합계
-    waiting_count = KakaoConsultationSession.where(status: 'waiting').count
-    unread_count = KakaoConsultationSession.where(status: 'active').sum(:unread_count)
-    total_count = waiting_count + unread_count
+    # waiting 상태와 active 상태 세션의 unread_count 합계
+    total_count = KakaoConsultationSession.where(status: ['waiting', 'active']).sum(:unread_count)
 
     render json: { count: total_count }
   end
@@ -68,17 +66,8 @@ class KakaoChatController < ApplicationController
                      .recent
                      .includes(:kakao_consultation_session)
 
-    # 고객이 보낸 메시지들을 읽음 처리 (현재 사용자가 담당 상담원인 경우)
-    if session.agent == current_user
-      unread_messages = messages.where(sender_type: 'customer', read_by_agent: false)
-      if unread_messages.any?
-        unread_messages.update_all(read_by_agent: true, read_at: Time.current)
-        
-        # 세션의 unread_count를 0으로 리셋
-        session.update!(unread_count: 0)
-        Rails.logger.info "Reset unread_count for session #{session.session_id} to 0"
-      end
-    end
+    # 현재 사용자가 메시지를 읽음 처리
+    mark_messages_as_read_by_user(session, current_user)
 
     messages_data = messages.map do |message|
       {
@@ -115,17 +104,24 @@ class KakaoChatController < ApplicationController
     return unless session
 
     return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
-    return render json: { error: 'Session is not active' }, status: :bad_request unless session.status == 'active'
+    return render json: { error: 'Session is ended' }, status: :bad_request if session.status == 'ended'
 
     content = params[:content]&.strip
     return render json: { error: 'Message content is required' }, status: :bad_request if content.blank?
 
     begin
+      # waiting 상태인 경우 active로 변경 (상담원이 첫 메시지를 보낼 때)
+      if session.status == 'waiting'
+        session.start_consultation!(current_user)
+        Rails.logger.info "Session #{session.session_id} started by agent #{current_user.login}"
+      end
+      
       # 메시지 생성
       message = session.kakao_consultation_messages.create!(
         content: content,
         sender_type: 'agent',
-        sender_user: current_user,
+        sender_id: current_user.id,
+        sender_name: current_user.fullname,
         sent_at: Time.current,
         message_type: params[:message_type] || 'text',
         preferences: {
@@ -227,6 +223,90 @@ class KakaoChatController < ApplicationController
     rescue StandardError => e
       Rails.logger.error "Failed to end session: #{e.message}"
       render json: { error: 'Failed to end session' }, status: :internal_server_error
+    end
+  end
+
+  # 담당자 변경
+  def assign_agent
+    session = find_session
+    return unless session
+
+    return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
+
+    agent_id = params[:agent_id]
+    return render json: { error: 'Agent ID is required' }, status: :bad_request if agent_id.blank?
+
+    # 상담원 존재 확인
+    agent = User.find_by(id: agent_id)
+    return render json: { error: 'Agent not found' }, status: :not_found unless agent
+    return render json: { error: 'User is not an agent' }, status: :bad_request unless agent.permissions?(['chat.agent'])
+
+    begin
+      old_agent = session.agent
+      session.update!(agent_id: agent_id)
+      
+      # 시스템 메시지 추가
+      if old_agent
+        message_content = "담당자가 #{old_agent.fullname}에서 #{agent.fullname}로 변경되었습니다."
+      else
+        message_content = "#{agent.fullname} 상담원이 담당자로 배정되었습니다."
+      end
+      
+      session.kakao_consultation_messages.create!(
+        content: message_content,
+        sender_type: 'system',
+        sent_at: Time.current,
+        message_type: 'system'
+      )
+      
+      # 상담원 할당 알림 브로드캐스트
+      broadcast_agent_assignment(session, agent)
+      
+      render json: {
+        session: {
+          id: session.id,
+          session_id: session.session_id,
+          agent_id: session.agent_id,
+          agent_name: session.agent.fullname,
+          status: session.status
+        }
+      }
+    rescue StandardError => e
+      Rails.logger.error "Failed to assign agent: #{e.message}"
+      render json: { error: 'Failed to assign agent' }, status: :internal_server_error
+    end
+  end
+
+  # 사용 가능한 상담원 목록
+  def available_agents
+    return render json: { error: 'KakaoTalk integration not enabled' }, status: :forbidden unless kakao_integration_enabled?
+    return render json: { error: 'Access denied' }, status: :forbidden unless current_user.permissions?(['chat.agent'])
+
+    begin
+      # chat.agent 권한을 가진 활성 사용자들 조회
+      # Zammad에서 권한은 Role.with_permissions를 통해 확인
+      agent_role_ids = Role.with_permissions('chat.agent').pluck(:id)
+      
+      agents = User.joins(:roles)
+                   .where(active: true)
+                   .where('roles_users.role_id' => agent_role_ids)
+                   .distinct
+                   .order(:firstname, :lastname)
+
+      agents_data = agents.map do |agent|
+        {
+          id: agent.id,
+          name: agent.fullname,
+          login: agent.login,
+          email: agent.email
+        }
+      end
+
+      render json: { agents: agents_data }
+    rescue StandardError => e
+      Rails.logger.error "Failed to get available agents: #{e.message}"
+      Rails.logger.error "Backtrace: #{e.backtrace.join("\n")}"
+      render json: { error: 'Failed to get available agents' }, status: :internal_server_error
     end
   end
 
@@ -384,11 +464,7 @@ class KakaoChatController < ApplicationController
   end
 
   def find_session
-    session = if params[:id].to_s.start_with?('kakao_')
-                KakaoConsultationSession.find_by(session_id: params[:id])
-              else
-                KakaoConsultationSession.find_by(id: params[:id])
-              end
+    session = KakaoConsultationSession.find_by(session_id: params[:id])
 
     unless session
       render json: { error: 'Session not found' }, status: :not_found
@@ -678,11 +754,81 @@ class KakaoChatController < ApplicationController
     # 관리자는 모든 세션에 접근 가능
     return true if current_user.permissions?(['admin'])
     
-    # 배정되지 않은 세션은 모든 상담원이 접근 가능
-    return true if session.agent_id.blank?
+    # 상담원 권한이 있으면 모든 세션에 접근 가능 (팀 공유 모델)
+    return true if current_user.permissions?(['chat.agent'])
     
-    # 배정된 상담원만 접근 가능
-    session.agent_id == current_user.id
+    # 배정된 상담원만 접근 가능 (제한적 모델)
+    # session.agent_id == current_user.id
+    
+    false
+  end
+
+  # 다중 상담원을 위한 읽음 처리 로직
+  def mark_messages_as_read_by_user(session, user)
+    # 1. 담당 상담원이 있고 현재 사용자가 담당자인 경우 -> 전체 읽음 처리
+    if session.agent_id.present? && session.agent_id == user.id
+      unread_messages = session.kakao_consultation_messages
+                              .where(sender_type: 'customer', read_by_agent: false)
+      if unread_messages.any?
+        unread_messages.update_all(read_by_agent: true, read_at: Time.current)
+        session.update!(unread_count: 0)
+        Rails.logger.info "Agent #{user.login} read all messages for assigned session #{session.session_id}"
+        
+        # 다른 상담원들에게 읽음 상태 업데이트 알림
+        broadcast_read_status_update(session, user)
+      end
+      
+    # 2. 담당 상담원이 없는 경우 -> 첫 번째 읽는 상담원이 담당자가 되고 전체 읽음 처리
+    elsif session.agent_id.blank?
+      unread_messages = session.kakao_consultation_messages
+                              .where(sender_type: 'customer', read_by_agent: false)
+      if unread_messages.any?
+        # 담당자 할당
+        session.update!(agent_id: user.id)
+        
+        # 읽음 처리
+        unread_messages.update_all(read_by_agent: true, read_at: Time.current)
+        session.update!(unread_count: 0)
+        
+        Rails.logger.info "Agent #{user.login} claimed session #{session.session_id} and read all messages"
+        
+        # 상담원 할당 및 읽음 상태 업데이트 알림
+        broadcast_agent_assignment(session, user)
+        broadcast_read_status_update(session, user)
+      end
+      
+    # 3. 다른 상담원이 담당 중인 경우 -> 개별 읽음 기록만 (전체 카운트에는 영향 없음)
+    else
+      # 개별 읽음 기록을 위한 로직 (선택사항)
+      # 이 경우 세션의 unread_count는 변경하지 않음
+      Rails.logger.info "Agent #{user.login} viewed session #{session.session_id} (assigned to agent_id: #{session.agent_id})"
+    end
+  end
+
+  # 읽음 상태 변경 알림
+  def broadcast_read_status_update(session, user)
+    notification_data = {
+      event: 'kakao_messages_read',
+      data: {
+        session_id: session.session_id,
+        read_by_agent: user.login,
+        unread_count: session.unread_count
+      }
+    }
+    Sessions.broadcast(notification_data)
+  end
+
+  # 상담원 할당 알림
+  def broadcast_agent_assignment(session, user)
+    notification_data = {
+      event: 'kakao_agent_assigned',
+      data: {
+        session_id: session.session_id,
+        agent_name: user.fullname,
+        agent_id: user.id
+      }
+    }
+    Sessions.broadcast(notification_data)
   end
 
   def kakao_integration_enabled?
@@ -714,7 +860,6 @@ class KakaoChatController < ApplicationController
   end
 
   def calculate_total_unread_count
-    KakaoConsultationSession.active.sum(:unread_count) + 
-    KakaoConsultationSession.where(status: 'waiting').count
+    KakaoConsultationSession.where(status: ['waiting', 'active']).sum(:unread_count)
   end
 end
