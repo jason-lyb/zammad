@@ -92,13 +92,10 @@ class KakaoConsultationMessage < ApplicationModel
     )
   end
 
+  # Navigation counter update is now handled via WebSocket in KakaoChatController#notify_agents
   def update_navigation_counter
-    # Load navigation helper
-    require Rails.root.join('app/controllers/concerns/kakao_consultation_navigation')
-    
-    # Broadcast counter update to all agents
-    KakaoConsultationNavigation.broadcast_counter_update
-  rescue => e
-    Rails.logger.error "Failed to update KakaoConsultation navigation counter: #{e.message}"
+    # Counter updates are handled via WebSocket notifications
+    # See KakaoChatController#notify_agents method
+    Rails.logger.debug "Navigation counter update skipped - handled via WebSocket"
   end
 end

@@ -42,6 +42,19 @@ class KakaoChatController < ApplicationController
     }
   end
 
+  # 읽지 않은 메시지 총 개수 조회
+  def unread_count
+    return render json: { error: 'KakaoTalk integration not enabled' }, status: :forbidden unless kakao_integration_enabled?
+    return render json: { error: 'Access denied' }, status: :forbidden unless current_user.permissions?(['chat.agent'])
+
+    # waiting 상태 세션 수 + active 상태 세션의 unread_count 합계
+    waiting_count = KakaoConsultationSession.where(status: 'waiting').count
+    unread_count = KakaoConsultationSession.where(status: 'active').sum(:unread_count)
+    total_count = waiting_count + unread_count
+
+    render json: { count: total_count }
+  end
+
   # 특정 카카오톡 상담 세션의 메시지 목록
   def messages
     session = find_session
@@ -630,36 +643,32 @@ class KakaoChatController < ApplicationController
 
   # 상담원들에게 실시간 알림
   def notify_agents(session, message)
-    # WebSocket을 통한 실시간 알림
+    # WebSocket을 통한 실시간 알림 (CTI 패턴 따라 구현)
     begin
+      # CTI의 cti_list_push 패턴을 따라 구현
       notification_data = {
-        type: 'kakao_message_received',
-        session_id: session.session_id,
-        session: {
-          id: session.id,
-          customer_name: session.customer_name,
-          status: session.status,
-          unread_count: session.unread_count
-        },
-        message: {
-          id: message.id,
-          content: message.content,
-          sender_type: message.sender_type,
-          sent_at: message.sent_at
+        event: 'kakao_message_received',
+        data: {
+          session_id: session.session_id,
+          session: {
+            id: session.id,
+            customer_name: session.customer_name,
+            status: session.status,
+            unread_count: session.unread_count
+          },
+          message: {
+            id: message.id,
+            content: message.content,
+            sender_type: message.sender_type,
+            sent_at: message.sent_at
+          }
         }
       }
       
-      # 특정 상담원이 배정된 경우 해당 상담원에게만 알림
-      if session.agent_id
-        Sessions.send_to(session.agent_id, notification_data)
-      else
-        # 배정되지 않은 경우 모든 상담원에게 알림
-        User.with_permissions(['chat.agent']).each do |agent|
-          Sessions.send_to(agent.id, notification_data)
-        end
-      end
+      # CTI 방식: Sessions.broadcast로 모든 클라이언트에 전송
+      Sessions.broadcast(notification_data)
+      Rails.logger.info "Broadcasted kakao_message_received event for session #{session.session_id}"
       
-      Rails.logger.info "Sent real-time notification for session #{session.session_id}"
     rescue StandardError => e
       Rails.logger.error "Failed to send real-time notification: #{e.message}"
     end
@@ -702,5 +711,10 @@ class KakaoChatController < ApplicationController
       Rails.logger.error "Failed to notify session end to KakaoTalk: #{e.message}"
       false
     end
+  end
+
+  def calculate_total_unread_count
+    KakaoConsultationSession.active.sum(:unread_count) + 
+    KakaoConsultationSession.where(status: 'waiting').count
   end
 end

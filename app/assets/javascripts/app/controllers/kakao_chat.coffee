@@ -17,6 +17,12 @@ class KakaoChat extends App.ControllerSubContent
         return
     )
     
+    # WebSocket 이벤트 바인딩
+    @bindWebSocketEvents()
+    
+    # 주기적 새로고침 (폴백)
+    @startPeriodicRefresh()
+    
     # 세션 목록 로드
     @loadSessions()
     
@@ -49,6 +55,21 @@ class KakaoChat extends App.ControllerSubContent
       # console.log 'Returning default true'
       return true
 
+  # 주기적 새로고침 시작 (WebSocket 폴백)
+  startPeriodicRefresh: =>
+    # 30초마다 세션 목록 새로고침
+    @refreshInterval = setInterval(=>
+      console.log 'Periodic refresh triggered'
+      @loadSessions()
+    , 30000)  # 30초 간격
+
+  # 정리 시 인터벌 제거
+  release: =>
+    if @refreshInterval
+      clearInterval(@refreshInterval)
+      @refreshInterval = null
+    super if super
+
   # 카카오톡 상담 세션 목록 로드
   loadSessions: =>
     # console.log 'Loading KakaoTalk chat sessions...'
@@ -60,15 +81,20 @@ class KakaoChat extends App.ControllerSubContent
       success: (data) =>
         # console.log 'Sessions loaded:', data
         @sessions = data.sessions || []
+        @updateNavMenu()  # CTI 패턴: 네비게이션 업데이트
         @render()
       error: (xhr, status, error) =>
         # console.error 'Failed to load sessions:', error
         @sessions = []
+        @updateNavMenu()  # 오류 시에도 네비게이션 업데이트
         @render()
     )
 
   render: =>
     # console.log 'KakaoChat render called with sessions:', @sessions?.length || 0
+    
+    # 전역 접근을 위해 window에 인스턴스 저장 (개발/테스트용)
+    window.kakaoChat = @
     
     if !@sessions
       # 로딩 중일 때
@@ -200,18 +226,58 @@ class KakaoChat extends App.ControllerSubContent
       when 'transferred' then '이관됨'
       else '알 수 없음'
 
-  # 네비게이션 카운터 기능 추가
+  # WebSocket 이벤트 바인딩
+  bindWebSocketEvents: =>
+    console.log 'Binding WebSocket events for KakaoChat'
+    
+    # CTI 패턴을 따라 구현
+    @controllerBind('kakao_message_received', (data) =>
+      console.log 'WebSocket: kakao_message_received', data
+      delay = =>
+        @loadSessions()
+      @delay(delay, 500, 'kakao_message_received_render')
+      'kakao_message_received'
+    )
+    
+    # 카운터 업데이트 이벤트도 처리
+    @controllerBind('kakao_counter_update', (data) =>
+      console.log 'WebSocket: kakao_counter_update', data
+      delay = =>
+        @updateNavMenu()
+      @delay(delay, 100, 'kakao_counter_update_render')
+      'kakao_counter_update'
+    )
+    
+    # WebSocket 연결 상태 확인 (안전하게 처리)
+    try
+      if window.App and App.WebSocket and App.WebSocket.channel and typeof App.WebSocket.channel is 'function'
+        channel = App.WebSocket.channel()
+        if channel and channel.state
+          console.log 'WebSocket connection status:', channel.state
+        else
+          console.log 'WebSocket channel available but no state'
+      else
+        console.log 'WebSocket not available'
+    catch error
+      console.log 'Error checking WebSocket status:', error.message
+
+  # 수동 새로고침 (테스트용)
+  manualRefresh: =>
+    console.log 'Manual refresh triggered'
+    @loadSessions()
+
+  # 네비게이션 카운터 기능 추가 (CTI 패턴)
   counter: =>
     count = 0
     console.log 'KakaoChat counter() called, sessions:', @sessions?.length || 0
-    if @sessions && Array.isArray(@sessions)
+    if @sessions and Array.isArray(@sessions)
       for session in @sessions
         # waiting 상태: 새로운 상담 요청으로 카운트 1
         # active 상태: 실제 읽지 않은 메시지 개수만큼 카운트
-        if session.status == 'waiting'
+        if session.status is 'waiting'
           count += 1  # waiting은 항상 1개로 카운트
           console.log "Session #{session.id}: status=#{session.status}, adding 1 (new consultation)"
-        else if session.status == 'active' && session.unread_count > 0
+        else if session.status is 'active' and session.unread_count > 0
           sessionCount = parseInt(session.unread_count) || 0
           count += sessionCount
           console.log "Session #{session.id}: status=#{session.status}, unread_count=#{session.unread_count}, adding #{sessionCount}"
