@@ -273,3 +273,19 @@
     margin-left: 110px;
   }
 }
+
+/* 마지막 메시지 발신 주체별 색상 - 발신자 정보에만 적용 */
+small.last-message-customer {
+  color: #1976d2 !important; /* 파란색 - 고객 메시지 */
+  font-weight: 500;
+}
+
+small.last-message-agent {
+  color: #388e3c !important; /* 녹색 - 상담원 메시지 */
+  font-weight: 500;
+}
+
+small.last-message-system {
+  color: #757575 !important; /* 회색 - 시스템 메시지 */
+  font-style: italic;
+}

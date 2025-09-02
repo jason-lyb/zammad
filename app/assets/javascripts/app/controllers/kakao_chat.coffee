@@ -231,6 +231,13 @@ class KakaoChat extends App.ControllerSubContent
         else
           "미배정"
         
+        # 마지막 메시지 발신 주체에 따른 색상 클래스 결정
+        lastMsgClass = switch session.last_message_sender
+          when 'customer' then 'last-message-customer'
+          when 'agent' then 'last-message-agent'
+          when 'system' then 'last-message-system'
+          else ''
+        
         """
         <tr class="session-row" data-session-id="#{session.session_id}" data-id="#{session.id}">
           <td>
@@ -245,7 +252,7 @@ class KakaoChat extends App.ControllerSubContent
             <div class="last-message">
               #{if session.last_message_content then App.Utils.textCleanup(session.last_message_content, 50) else '메시지 없음'}
             </div>
-            <small class="text-muted">
+            <small class="text-muted #{lastMsgClass}">
               발신: #{if session.last_message_sender == 'customer' then '고객' else if session.last_message_sender == 'agent' then '상담원' else '시스템'}
             </small>
           </td>
