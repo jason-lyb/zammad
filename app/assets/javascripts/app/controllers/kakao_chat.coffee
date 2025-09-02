@@ -7,6 +7,25 @@ class KakaoChat extends App.ControllerSubContent
     # console.log 'KakaoChat super constructor completed'
     # console.log 'KakaoChat @el after super:', @el
     
+    # 현재 화면이 활성화되어 있음을 표시
+    @isActive = true
+    
+    # 강제로 다른 뷰들 정리하고 목록 뷰 설정
+    console.log 'KakaoChat constructor - forcing activeView to chat_list'
+    @setActiveView('kakao_chat_list')
+    
+    # 약간의 지연 후에도 다시 설정 (확실하게)
+    @delay(=>
+      @setActiveView('kakao_chat_list')
+      console.log 'KakaoChat constructor - confirmed active view:', KakaoChat.getActiveView()
+    , 50, 'confirm_list_view')
+    
+    # 추가로 100ms 후에도 다시 설정
+    @delay(=>
+      @setActiveView('kakao_chat_list')
+      console.log 'KakaoChat constructor - final confirmation active view:', KakaoChat.getActiveView()
+    , 100, 'final_confirm_list_view')
+    
     # 네비게이션 하이라이트 즉시 적용
     @forceNavHighlight()
     
@@ -92,10 +111,41 @@ class KakaoChat extends App.ControllerSubContent
 
   # 정리 시 인터벌 제거
   release: =>
+    console.log 'KakaoChat release called'
+    @isActive = false
+    @setActiveView(null)
+    
     if @refreshInterval
       clearInterval(@refreshInterval)
       @refreshInterval = null
+      
+    # 모든 delay 취소
+    @clearDelay('kakao_refresh')
+    @clearDelay('kakao_read_refresh')
+    @clearDelay('kakao_assignment_refresh')
+    @clearDelay('kakao_counter_update_render')
+    @clearDelay('force_highlight_1')
+    @clearDelay('force_highlight_2')
+    @clearDelay('render_highlight_1')
+    @clearDelay('render_highlight_2')
+    @clearDelay('confirm_list_view')
+    @clearDelay('final_confirm_list_view')
+    
+    console.log 'KakaoChat released, isActive:', @isActive, 'activeView:', KakaoChat.getActiveView()
     super if super
+
+  # 현재 활성화된 뷰 설정 (전역 상태)
+  setActiveView: (viewName) =>
+    if window.App
+      oldView = window.App.activeKakaoView
+      window.App.activeKakaoView = viewName
+      console.log "KakaoChat setActiveView: #{oldView} -> #{viewName}"
+    else
+      console.log 'KakaoChat setActiveView: window.App not available'
+    
+  # 현재 활성화된 뷰 확인
+  @getActiveView: =>
+    window.App?.activeKakaoView || null
 
   # 카카오톡 상담 세션 목록 로드
   loadSessions: =>
@@ -119,6 +169,11 @@ class KakaoChat extends App.ControllerSubContent
 
   render: =>
     # console.log 'KakaoChat render called with sessions:', @sessions?.length || 0
+    
+    # 렌더링 시점에 activeView 재확인 및 설정
+    console.log 'KakaoChat render - current activeView before setting:', KakaoChat.getActiveView()
+    @setActiveView('kakao_chat_list')
+    console.log 'KakaoChat render - activeView after setting:', KakaoChat.getActiveView()
     
     # 전역 접근을 위해 window에 인스턴스 저장 (개발/테스트용)
     window.kakaoChat = @
@@ -272,37 +327,65 @@ class KakaoChat extends App.ControllerSubContent
     # CTI 패턴을 따라 구현
         # WebSocket 이벤트 바인딩
     @controllerBind('kakao_message_received', (data) =>
-      console.log 'Received kakao_message_received event:', data
-      delay = =>
-        @loadSessions()
-        @updateNavMenu()
-      @delay(delay, 1000, 'kakao_refresh')
+      console.log 'KakaoChat received kakao_message_received event:', data
+      console.log 'Current active view:', KakaoChat.getActiveView()
+      
+      # 현재 채팅 목록 화면에 있을 때만 처리
+      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list'
+        console.log 'Processing message event in chat list view'
+        delay = =>
+          @loadSessions()
+          @updateNavMenu()
+        @delay(delay, 1000, 'kakao_refresh')
+      else
+        console.log 'Ignoring message event - not in chat list view'
     )
     
     # 메시지 읽음 상태 업데이트
     @controllerBind('kakao_messages_read', (data) =>
-      console.log 'Messages read event received:', data
-      delay = =>
-        @loadSessions()
-        @updateNavMenu()
-      @delay(delay, 500, 'kakao_read_refresh')
+      console.log 'KakaoChat received kakao_messages_read event:', data
+      console.log 'Current active view:', KakaoChat.getActiveView()
+      
+      # 현재 채팅 목록 화면에 있을 때만 처리
+      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list'
+        console.log 'Processing messages read event in chat list view'
+        delay = =>
+          @loadSessions()
+          @updateNavMenu()
+        @delay(delay, 500, 'kakao_read_refresh')
+      else
+        console.log 'Ignoring messages read event - not in chat list view'
     )
     
     # 상담원 할당 알림
     @controllerBind('kakao_agent_assigned', (data) =>
-      console.log 'Agent assigned event received:', data
-      delay = =>
-        @loadSessions()
-        @updateNavMenu()
-      @delay(delay, 500, 'kakao_assignment_refresh')
+      console.log 'KakaoChat received kakao_agent_assigned event:', data
+      console.log 'Current active view:', KakaoChat.getActiveView()
+      
+      # 현재 채팅 목록 화면에 있을 때만 처리
+      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list'
+        console.log 'Processing agent assigned event in chat list view'
+        delay = =>
+          @loadSessions()
+          @updateNavMenu()
+        @delay(delay, 500, 'kakao_assignment_refresh')
+      else
+        console.log 'Ignoring agent assigned event - not in chat list view'
     )
     
     # 카운터 업데이트 이벤트도 처리
     @controllerBind('kakao_counter_update', (data) =>
-      console.log 'WebSocket: kakao_counter_update', data
-      delay = =>
-        @updateNavMenu()
-      @delay(delay, 100, 'kakao_counter_update_render')
+      console.log 'KakaoChat received kakao_counter_update event:', data
+      console.log 'Current active view:', KakaoChat.getActiveView()
+      
+      # 현재 채팅 목록 화면에 있을 때만 처리
+      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list'
+        console.log 'Processing counter update event in chat list view'
+        delay = =>
+          @updateNavMenu()
+        @delay(delay, 100, 'kakao_counter_update_render')
+      else
+        console.log 'Ignoring counter update event - not in chat list view'
       'kakao_counter_update'
     )
     
@@ -349,6 +432,12 @@ class KakaoChatRouter extends App.ControllerPermanent
 
     # 인증 확인
     @authenticateCheckRedirect()
+    
+    # 라우터 레벨에서 activeView 강제 설정
+    console.log 'KakaoChatRouter - forcing activeView to chat_list'
+    if window.App
+      window.App.activeKakaoView = 'kakao_chat_list'
+      console.log 'KakaoChatRouter - set activeView to:', window.App.activeKakaoView
     
     # 네비게이션 하이라이트 강제 적용 (여러 번)
     @navupdate('#kakao_chat')

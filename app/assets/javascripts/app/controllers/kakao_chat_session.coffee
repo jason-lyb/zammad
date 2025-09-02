@@ -8,6 +8,10 @@ class KakaoChatSession extends App.ControllerSubContent
     @sessionId = params.session_id
     console.log 'KakaoChatSession constructor called with sessionId:', @sessionId
     
+    # 현재 화면이 활성화되어 있음을 표시
+    @isActive = true
+    @setActiveView('kakao_chat_session')
+    
     # 데이터 초기화
     @session = null
     @messages = []
@@ -40,8 +44,9 @@ class KakaoChatSession extends App.ControllerSubContent
     )
 
   # 메시지 목록 로드
-  loadMessages: =>
+  loadMessages: (skipRender = false) =>
     console.log 'Loading messages for session:', @sessionId
+    console.log 'Current messages count:', @messages?.length || 0
     
     App.Ajax.request(
       id: 'kakao_chat_messages'
@@ -49,12 +54,104 @@ class KakaoChatSession extends App.ControllerSubContent
       url: "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/messages"
       success: (data) =>
         console.log 'Messages loaded:', data
-        @messages = data.messages || []
-        @render()
+        console.log 'Previous message count:', @messages?.length || 0
+        
+        newMessages = data.messages || []
+        console.log 'New message count:', newMessages.length
+        
+        # 새 메시지만 감지하여 추가
+        if @messages and @messages.length > 0
+          # 기존 메시지 ID 목록
+          existingIds = @messages.map((msg) -> msg.id)
+          # 새로운 메시지만 필터링
+          addedMessages = newMessages.filter((msg) -> msg.id not in existingIds)
+          
+          if addedMessages.length > 0
+            console.log 'Found new messages:', addedMessages.length
+            @messages = newMessages  # 전체 메시지 배열 업데이트
+            @addNewMessagesToDOM(addedMessages)  # DOM에 새 메시지만 추가
+            # 새 메시지 추가 후 읽음 처리
+            @markMessagesAsRead()
+            return
+        
+        # 처음 로드이거나 전체 재렌더링이 필요한 경우
+        @messages = newMessages
+        if not skipRender
+          console.log 'About to call @render() for full message update'
+          @render()
+          console.log '@render() completed for full message update'
+          # 메시지 로드 후 읽음 처리
+          @markMessagesAsRead()
       error: (xhr, status, error) =>
         console.error 'Failed to load messages:', error
         @renderError('메시지를 불러올 수 없습니다.')
     )
+
+  # 새 메시지를 DOM에 추가 (스크롤 위치 유지)
+  addNewMessagesToDOM: (newMessages) =>
+    console.log 'Adding new messages to DOM:', newMessages.length
+    
+    messagesList = @el.find('.messages-list')
+    return unless messagesList.length > 0
+    
+    # 새 메시지 HTML 생성
+    newMessagesHtml = newMessages.map((message) =>
+      @renderSingleMessage(message)
+    ).join('')
+    
+    # 기존 메시지 목록에 새 메시지 추가
+    if messagesList.find('.no-messages').length > 0
+      # "메시지가 없습니다" 메시지가 있으면 제거하고 새 메시지 추가
+      messagesList.html(newMessagesHtml)
+    else
+      # 기존 메시지에 새 메시지 추가
+      messagesList.append(newMessagesHtml)
+    
+    # 메시지 개수 업데이트
+    @el.find('.messages-container h3').text("메시지 목록 (#{@messages.length}개)")
+    
+    # 새 메시지 추가 후 부드럽게 스크롤
+    @smoothScrollToBottom()
+
+  # 단일 메시지 HTML 렌더링
+  renderSingleMessage: (message) =>
+    senderClass = switch message.sender_type
+      when 'customer' then 'customer'
+      when 'agent' then 'agent'
+      when 'system' then 'system'
+      else 'unknown'
+    
+    timeStr = if message.sent_at
+      @humanTime(message.sent_at)
+    else
+      '시간 없음'
+    
+    # 상담원 메시지는 오른쪽 정렬, 나머지는 왼쪽 정렬
+    alignmentClass = if message.sender_type is 'agent' then 'message-right' else 'message-left'
+    
+    """
+    <div class="message message-#{senderClass} #{alignmentClass}">
+      <div class="message-bubble">
+        <div class="message-header">
+          <strong>#{message.sender_name || message.sender_type}</strong>
+          <span class="time">#{timeStr}</span>
+        </div>
+        <div class="message-content">
+          #{App.Utils.htmlEscape(message.content)}
+        </div>
+      </div>
+    </div>
+    """
+
+  # 부드러운 스크롤
+  smoothScrollToBottom: =>
+    messagesList = @el.find('.messages-list')
+    if messagesList.length > 0
+      # 애니메이션을 사용하여 부드럽게 스크롤
+      messagesList.animate(
+        scrollTop: messagesList[0].scrollHeight
+      , 300)  # 300ms 동안 부드럽게 스크롤
+      console.log 'Smooth scrolled to bottom of messages'
 
   # 상담원 목록 로드
   loadAgents: =>
@@ -83,33 +180,7 @@ class KakaoChatSession extends App.ControllerSubContent
     
     # 메시지 목록 HTML 생성
     messagesList = @messages.map((message) =>
-      senderClass = switch message.sender_type
-        when 'customer' then 'customer'
-        when 'agent' then 'agent'
-        when 'system' then 'system'
-        else 'unknown'
-      
-      timeStr = if message.sent_at
-        @humanTime(message.sent_at)
-      else
-        '시간 없음'
-      
-      # 상담원 메시지는 오른쪽 정렬, 나머지는 왼쪽 정렬
-      alignmentClass = if message.sender_type is 'agent' then 'message-right' else 'message-left'
-      
-      """
-      <div class="message message-#{senderClass} #{alignmentClass}">
-        <div class="message-bubble">
-          <div class="message-header">
-            <strong>#{message.sender_name || message.sender_type}</strong>
-            <span class="time">#{timeStr}</span>
-          </div>
-          <div class="message-content">
-            #{App.Utils.htmlEscape(message.content)}
-          </div>
-        </div>
-      </div>
-      """
+      @renderSingleMessage(message)
     ).join('')
     
     # 세션 상태 표시
@@ -177,6 +248,21 @@ class KakaoChatSession extends App.ControllerSubContent
     
     @el.html(html)
     @bindEvents()
+    
+    # 메시지 목록을 맨 아래로 스크롤
+    @smoothScrollToBottom()
+    
+    # 초기 렌더링 완료 후 읽음 처리
+    @markMessagesAsRead()
+
+  # 기존 scrollToBottom 메서드 (즉시 스크롤)
+  scrollToBottom: =>
+    @delay(=>
+      messagesList = @el.find('.messages-list')
+      if messagesList.length > 0
+        messagesList.scrollTop(messagesList[0].scrollHeight)
+        console.log 'Scrolled to bottom of messages'
+    , 100, 'scroll_to_bottom')
 
   # 메시지 입력 폼 렌더링
   renderMessageInput: =>
@@ -245,6 +331,10 @@ class KakaoChatSession extends App.ControllerSubContent
     # 목록으로 돌아가기
     @el.on('click', '.js-back', (e) =>
       e.preventDefault()
+      console.log 'Navigating back to chat list, releasing session view'
+      # 명시적으로 상세화면 정리
+      @isActive = false
+      @setActiveView(null)
       @navigate('#kakao_chat')
     )
     
@@ -290,7 +380,7 @@ class KakaoChatSession extends App.ControllerSubContent
         console.log 'Message sent successfully:', data
         @el.find('.js-message-input').val('')
         @loadSession()  # 세션 정보 새로고침 (상태 변경 반영)
-        @loadMessages()  # 메시지 목록 새로고침
+        @loadMessages()  # 메시지 목록 새로고침 (새 메시지만 추가됨)
       error: (xhr, status, error) =>
         console.error 'Failed to send message:', error
         alert('메시지 전송에 실패했습니다.')
@@ -331,7 +421,7 @@ class KakaoChatSession extends App.ControllerSubContent
       success: (data) =>
         console.log 'Agent assigned successfully:', data
         @loadSession()  # 세션 정보 새로고침
-        @loadMessages() # 메시지 목록 새로고침 (시스템 메시지 포함)
+        @loadMessages() # 메시지 목록 새로고침 (시스템 메시지 추가됨)
       error: (xhr, status, error) =>
         console.error 'Failed to assign agent:', error
         alert('담당자 변경에 실패했습니다.')
@@ -341,26 +431,72 @@ class KakaoChatSession extends App.ControllerSubContent
   bindWebSocketEvents: =>
     # 새 메시지 수신 시 자동 새로고침
     @controllerBind('kakao_message_received', (data) =>
-      if data.data?.session_id is @sessionId
-        console.log 'New message received for current session'
-        delay = =>
-          @loadMessages()
-        @delay(delay, 500, 'kakao_session_message_refresh')
+      console.log 'KakaoChatSession received kakao_message_received:', data
+      console.log 'Current session ID:', @sessionId
+      console.log 'Current active view:', KakaoChatSession.getActiveView()
+      console.log 'Session isActive:', @isActive
+      console.log 'Event session ID (data.session_id):', data.session_id
+      console.log 'Event session ID (data.data?.session_id):', data.data?.session_id
+      
+      # 현재 세션 상세 화면에 있고, 해당 세션의 메시지일 때만 처리
+      if not @isActive or KakaoChatSession.getActiveView() isnt 'kakao_chat_session'
+        console.log 'Ignoring message event - session detail not active'
+        return
+      
+      # 두 가지 방식으로 세션 ID 확인
+      eventSessionId = data.session_id || data.data?.session_id
+      console.log 'Final event session ID:', eventSessionId
+      
+      if eventSessionId is @sessionId
+        console.log 'Session ID matches! Loading new messages...'
+        
+        # 새 메시지만 추가하는 방식으로 로드
+        @loadMessages()
+        
+        # 현재 세션 상세 화면에 있으므로 자동으로 읽음 처리
+        console.log 'Auto-marking messages as read (user viewing session detail)'
+        @markMessagesAsRead()
+      else
+        console.log 'Session ID does not match, ignoring event'
     )
     
     # 메시지 읽음 상태 업데이트
     @controllerBind('kakao_messages_read', (data) =>
-      if data.data?.session_id is @sessionId
-        console.log 'Messages marked as read by:', data.data.read_by_agent
+      console.log 'KakaoChatSession received kakao_messages_read:', data
+      console.log 'Current active view:', KakaoChatSession.getActiveView()
+      console.log 'Session isActive:', @isActive
+      console.log 'Event data structure - data.data exists?:', !!data.data
+      console.log 'Event data structure - data.session_id:', data.session_id
+      console.log 'Event data structure - data.data?.session_id:', data.data?.session_id
+      
+      # 데이터 구조 확인: session_id가 최상위에 있는 경우와 data 안에 있는 경우 모두 처리
+      eventSessionId = data.session_id || data.data?.session_id
+      console.log 'Extracted session ID:', eventSessionId, 'vs current session:', @sessionId
+      
+      # 현재 세션 상세 화면에 있고, 해당 세션의 이벤트일 때만 처리
+      if @isActive and KakaoChatSession.getActiveView() is 'kakao_chat_session' and eventSessionId is @sessionId
+        console.log 'Processing messages read event in session detail view'
+        console.log 'Messages marked as read by:', data.read_by_agent || data.data?.read_by_agent
         # 필요시 UI 업데이트 (예: 읽음 표시)
-        @updateReadStatus(data.data)
+        @updateReadStatus(data.data || data)
+      else
+        console.log 'Ignoring messages read event - not in session detail view or different session'
+        console.log 'Conditions: isActive=', @isActive, 'activeView=', KakaoChatSession.getActiveView(), 'sessionMatch=', (eventSessionId is @sessionId)
     )
     
     # 상담원 할당 알림
     @controllerBind('kakao_agent_assigned', (data) =>
-      if data.data?.session_id is @sessionId
+      console.log 'KakaoChatSession received kakao_agent_assigned:', data
+      console.log 'Current active view:', KakaoChatSession.getActiveView()
+      console.log 'Session isActive:', @isActive
+      
+      # 현재 세션 상세 화면에 있고, 해당 세션의 이벤트일 때만 처리
+      if @isActive and KakaoChatSession.getActiveView() is 'kakao_chat_session' and data.data?.session_id is @sessionId
+        console.log 'Processing agent assigned event in session detail view'
         console.log 'Agent assigned to session:', data.data.agent_name
         @loadSession() # 세션 정보 새로고침
+      else
+        console.log 'Ignoring agent assigned event - not in session detail view or different session'
     )
 
   # 읽음 상태 UI 업데이트
@@ -373,6 +509,73 @@ class KakaoChatSession extends App.ControllerSubContent
     # unread_count 업데이트가 있으면 반영
     if data.unread_count?
       @session.unread_count = data.unread_count if @session
+
+  # 정리 시 활성 뷰 해제
+  release: =>
+    console.log 'KakaoChatSession release called for session:', @sessionId
+    @isActive = false
+    @setActiveView(null)
+    
+    # 모든 delay 취소
+    @clearDelay('mark_messages_read')
+    @clearDelay('auto_scroll')
+    @clearDelay('load_messages')
+    
+    # 컨트롤러 바인딩 해제 (필요시)
+    # @controllerUnbind('kakao_message_received')
+    # @controllerUnbind('kakao_messages_read')
+    # @controllerUnbind('kakao_agent_assigned')
+    
+    console.log 'KakaoChatSession released, isActive:', @isActive, 'activeView:', KakaoChatSession.getActiveView()
+    super if super
+
+  # 현재 활성화된 뷰 설정 (전역 상태)
+  setActiveView: (viewName) =>
+    if window.App
+      oldView = window.App.activeKakaoView
+      window.App.activeKakaoView = viewName
+      console.log "KakaoChatSession setActiveView: #{oldView} -> #{viewName}"
+    else
+      console.log 'KakaoChatSession setActiveView: window.App not available'
+    
+  # 현재 활성화된 뷰 확인
+  @getActiveView: =>
+    window.App?.activeKakaoView || null
+
+  # 메시지 읽음 처리 (디바운스)
+  markMessagesAsRead: =>
+    return unless @sessionId and @isActive
+    
+    # 추가 안전장치: 현재 활성 뷰가 세션 상세인지 확인
+    currentView = KakaoChatSession.getActiveView()
+    if currentView isnt 'kakao_chat_session'
+      console.log 'Skipping mark as read - not in session detail view, current view:', currentView
+      return
+    
+    console.log 'markMessagesAsRead called for session:', @sessionId, 'isActive:', @isActive, 'currentView:', currentView
+    
+    # 디바운스: 500ms 내에 여러 호출이 있으면 마지막 것만 실행
+    @delay(=>
+      # 실행 시점에 다시 한번 확인
+      if not @isActive or KakaoChatSession.getActiveView() isnt 'kakao_chat_session'
+        console.log 'Canceling mark as read - view changed during delay'
+        return
+        
+      console.log 'Executing delayed mark messages as read for session:', @sessionId
+      
+      App.Ajax.request(
+        id: 'kakao_chat_mark_read'
+        type: 'POST'
+        url: "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/read"
+        success: (data) =>
+          console.log 'Messages marked as read successfully:', data
+          if data.read_count > 0
+            console.log "Marked #{data.read_count} messages as read, new unread count: #{data.unread_count}"
+        error: (xhr, status, error) =>
+          console.error 'Failed to mark messages as read:', error
+          console.error 'Response:', xhr.responseText if xhr.responseText
+      )
+    , 500, 'mark_messages_read')
 
 # App 네임스페이스에 등록
 App.KakaoChatSession = KakaoChatSession

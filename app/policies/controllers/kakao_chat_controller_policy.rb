@@ -26,6 +26,10 @@ class Controllers::KakaoChatControllerPolicy < Controllers::ApplicationControlle
     user.permissions?(['admin.integration', 'chat.agent'])
   end
 
+  def mark_messages_as_read?
+    user.permissions?(['admin.integration', 'chat.agent'])
+  end
+
   def available_agents?
     user.permissions?(['admin.integration', 'chat.agent'])
   end

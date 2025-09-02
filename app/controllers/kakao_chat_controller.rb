@@ -66,8 +66,8 @@ class KakaoChatController < ApplicationController
                      .recent
                      .includes(:kakao_consultation_session)
 
-    # 현재 사용자가 메시지를 읽음 처리
-    mark_messages_as_read_by_user(session, current_user)
+    # 읽음 처리는 프론트엔드에서 명시적으로 호출할 때만 수행
+    # mark_messages_as_read_by_user(session, current_user) # 제거됨
 
     messages_data = messages.map do |message|
       {
@@ -277,6 +277,50 @@ class KakaoChatController < ApplicationController
     end
   end
 
+  # 메시지 읽음 처리
+  def mark_messages_as_read
+    session = find_session
+    return unless session
+
+    return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
+
+    begin
+      # 현재 사용자가 읽음 처리할 수 있는 메시지들을 찾음
+      unread_messages = session.kakao_consultation_messages
+                              .where(sender_type: 'customer', is_read: false)
+      
+      if unread_messages.any?
+        # 메시지들을 읽음으로 표시
+        unread_messages.update_all(is_read: true, read_by_agent: true, read_at: Time.current)
+        
+        # 세션의 unread_count 직접 업데이트
+        new_unread_count = session.kakao_consultation_messages.where(sender_type: 'customer', is_read: false).count
+        session.update!(unread_count: new_unread_count)
+        
+        Rails.logger.info "Marked #{unread_messages.count} messages as read for session #{session.session_id} by #{current_user.login}"
+        Rails.logger.info "Updated session unread_count from #{session.unread_count} to #{new_unread_count}"
+        
+        # 읽음 처리 브로드캐스트
+        broadcast_messages_read(session, current_user, new_unread_count)
+        
+        render json: {
+          status: 'success',
+          read_count: unread_messages.count,
+          unread_count: new_unread_count
+        }
+      else
+        render json: {
+          status: 'success',
+          read_count: 0,
+          unread_count: 0
+        }
+      end
+    rescue StandardError => e
+      Rails.logger.error "Failed to mark messages as read: #{e.message}"
+      render json: { error: 'Failed to mark messages as read' }, status: :internal_server_error
+    end
+  end
+
   # 사용 가능한 상담원 목록
   def available_agents
     return render json: { error: 'KakaoTalk integration not enabled' }, status: :forbidden unless kakao_integration_enabled?
@@ -356,6 +400,7 @@ class KakaoChatController < ApplicationController
     message_type = params[:type]
     sender_type = params[:sender_type] || 'customer' # 기본값은 customer
     agent_id = params[:agent_id] # 상담원 ID (상담원 메시지인 경우)
+    current_view = params[:current_view] # 현재 활성화된 화면 정보
 
     return render json: { error: 'user_key is required' }, status: :bad_request if user_key.blank?
     return render json: { error: 'session_id is required' }, status: :bad_request if session_id.blank?
@@ -391,7 +436,7 @@ class KakaoChatController < ApplicationController
         update_session_stats(session, message)
         
         # 5. 실시간 알림 전송 (WebSocket 등)
-        notify_agents(session, message)
+        notify_agents(session, message, current_view)
         
         render json: {
           status: 'success',
@@ -718,7 +763,13 @@ class KakaoChatController < ApplicationController
   end
 
   # 상담원들에게 실시간 알림
-  def notify_agents(session, message)
+  def notify_agents(session, message, current_view = nil)
+    # 고객 메시지인 경우 읽음 처리는 프론트엔드에서만 명시적으로 수행
+    # 백엔드에서 자동 읽음 처리 비활성화 - 혼란을 방지하기 위해
+    if message.sender_type == 'customer'
+      Rails.logger.info "Customer message received for session #{session.session_id} - read processing will be handled by frontend"
+    end
+
     # WebSocket을 통한 실시간 알림 (CTI 패턴 따라 구현)
     begin
       # CTI의 cti_list_push 패턴을 따라 구현
@@ -829,6 +880,21 @@ class KakaoChatController < ApplicationController
       }
     }
     Sessions.broadcast(notification_data)
+  end
+
+  # 메시지 읽음 처리 알림
+  def broadcast_messages_read(session, user, unread_count)
+    notification_data = {
+      event: 'kakao_messages_read',
+      data: {
+        session_id: session.session_id,
+        read_by_agent: user.fullname,
+        read_by_agent_id: user.id,
+        unread_count: unread_count
+      }
+    }
+    Sessions.broadcast(notification_data)
+    Rails.logger.info "Broadcasted kakao_messages_read event for session #{session.session_id}"
   end
 
   def kakao_integration_enabled?
