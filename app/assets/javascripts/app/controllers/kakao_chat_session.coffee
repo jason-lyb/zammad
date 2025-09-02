@@ -171,9 +171,6 @@ class KakaoChatSession extends App.ControllerSubContent
   render: =>
     console.log 'Rendering session view'
     
-    # highlight navbar - 네비게이션 하이라이트 적용
-    @navupdate('#kakao_chat')
-    
     if not @session
       @renderLoading()
       return
