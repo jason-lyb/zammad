@@ -43,4 +43,9 @@ class Controllers::KakaoChatControllerPolicy < Controllers::ApplicationControlle
     true
   end
 
+  def send_message_api?
+    # API는 자체 토큰 인증을 사용하므로 Pundit에서는 허용
+    true
+  end
+
 end

@@ -130,8 +130,18 @@ class KakaoChatController < ApplicationController
         }
       )
 
-      # 세션의 마지막 메시지 시간 업데이트
-      session.update!(last_message_at: message.sent_at)
+      # 세션의 마지막 메시지 정보 업데이트
+      session.update!(
+        last_message_at: message.sent_at,
+        last_message_content: message.content,
+        last_message_sender: message.sender_type
+      )
+
+      # 통계 업데이트
+      update_session_stats(session, message)
+      
+      # 실시간 알림 전송 (receive_message와 동일하게 적용)
+      notify_agents(session, message)
 
       # 실제 카카오톡 API로 메시지 전송
       if send_to_kakao_api(session, content)
@@ -385,6 +395,109 @@ class KakaoChatController < ApplicationController
     }
   end
 
+  # 범용 메시지 전송 API
+  def send_message_api
+    # Zammad 기본 API 토큰 인증 사용 (receive_message와 동일)
+    return render json: { error: 'API token authentication required' }, status: :unauthorized unless verify_zammad_api_token
+    
+    # 필수 파라미터 확인
+    session_id = params[:session_id]
+    content = params[:content]&.strip
+    sender_type = params[:sender_type] || 'agent'
+    sender_id = params[:sender_id] || params[:agent_id] # agent_id도 지원
+    sender_name = params[:sender_name]
+    message_type = params[:message_type] || 'text'
+    
+    return render json: { error: 'session_id is required' }, status: :bad_request if session_id.blank?
+    return render json: { error: 'content is required' }, status: :bad_request if content.blank?
+    return render json: { error: 'sender_type must be customer, agent, or system' }, status: :bad_request unless %w[customer agent system].include?(sender_type)
+    
+    # 상담원 메시지인 경우 sender_id 또는 current_user 확인
+    if sender_type == 'agent'
+      if sender_id.present?
+        sender_user = User.find_by(id: sender_id)
+        return render json: { error: 'Agent not found' }, status: :not_found unless sender_user
+        return render json: { error: 'User is not an agent' }, status: :bad_request unless sender_user.permissions?(['chat.agent'])
+        # sender_name이 없으면 실제 agent의 이름 사용
+        sender_name = sender_user.fullname if sender_name.blank?
+      else
+        sender_user = current_user
+        sender_id = current_user.id
+        sender_name = current_user.fullname if sender_name.blank?
+      end
+    end
+    
+    begin
+      # 세션 찾기
+      session = KakaoConsultationSession.find_by(session_id: session_id)
+      return render json: { error: 'Session not found' }, status: :not_found unless session
+      
+      # 접근 권한 확인
+      return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
+      return render json: { error: 'Session is ended' }, status: :bad_request if session.status == 'ended'
+      
+      # waiting 상태인 경우 active로 변경 (상담원이 첫 메시지를 보낼 때)
+      if session.status == 'waiting' && sender_type == 'agent'
+        session.start_consultation!(sender_user || current_user)
+        Rails.logger.info "Session #{session.session_id} started by agent #{(sender_user || current_user).login}"
+      end
+      
+      # 메시지 생성
+      message = session.kakao_consultation_messages.create!(
+        content: content,
+        sender_type: sender_type,
+        sender_id: sender_id,
+        sender_name: sender_name || (sender_type == 'system' ? 'System' : '알 수 없음'),
+        sent_at: Time.current,
+        message_type: message_type,
+        preferences: {
+          message_type: message_type,
+          attachments: params[:attachments] || []
+        }
+      )
+      
+      # 세션의 마지막 메시지 정보 업데이트
+      session.update!(
+        last_message_at: message.sent_at,
+        last_message_content: message.content,
+        last_message_sender: message.sender_type
+      )
+      
+      # 고객 메시지인 경우 unread_count 증가
+      if sender_type == 'customer'
+        session.increment!(:unread_count)
+      end
+      
+      # 통계 업데이트
+      update_session_stats(session, message)
+      
+      # 실시간 알림 전송
+      notify_agents(session, message)
+      
+      render json: {
+        status: 'success',
+        message: {
+          id: message.id,
+          content: message.content,
+          sender_type: message.sender_type,
+          sender_name: message.sender_name,
+          sent_at: message.sent_at,
+          message_type: message.message_type
+        },
+        session: {
+          id: session.id,
+          session_id: session.session_id,
+          status: session.status,
+          unread_count: session.unread_count
+        }
+      }
+      
+    rescue StandardError => e
+      Rails.logger.error "Failed to send message via API: #{e.message}"
+      render json: { error: 'Failed to send message' }, status: :internal_server_error
+    end
+  end
+
   # 카카오톡에서 메시지 수신 (Webhook)
   def receive_message
     # Zammad 기본 API 토큰 인증 사용
@@ -456,6 +569,34 @@ class KakaoChatController < ApplicationController
   end
 
   private
+
+  def verify_api_authentication
+    token = request.headers['Authorization']&.split(' ')&.last || params[:token]
+    
+    Rails.logger.info "API Authentication - Received token: #{token}"
+    Rails.logger.info "API Authentication - Token from headers: #{request.headers['Authorization']}"
+    Rails.logger.info "API Authentication - Token from params: #{params[:token]}"
+    
+    unless token
+      Rails.logger.warn "API Authentication - No token provided"
+      render json: { error: '인증 토큰이 필요합니다.' }, status: :unauthorized
+      return false
+    end
+    
+    # 임시 토큰 또는 Setting에서 가져오기
+    valid_token = Setting.get('kakao_chat_api_token') || 'kakao_chat_api_token_123'
+    Rails.logger.info "API Authentication - Valid token: #{valid_token}"
+    Rails.logger.info "API Authentication - Token comparison: '#{token}' == '#{valid_token}' => #{token == valid_token}"
+    
+    unless token == valid_token
+      Rails.logger.warn "API Authentication - Token mismatch: received='#{token}', expected='#{valid_token}'"
+      render json: { error: '유효하지 않은 인증 토큰입니다.' }, status: :unauthorized
+      return false
+    end
+    
+    Rails.logger.info "API Authentication - Success"
+    true
+  end
 
   # Zammad 기본 API 토큰 인증 사용
   def verify_zammad_api_token

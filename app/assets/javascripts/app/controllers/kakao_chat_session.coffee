@@ -443,7 +443,7 @@ class KakaoChatSession extends App.ControllerSubContent
         console.log 'Ignoring message event - session detail not active'
         return
       
-      # 두 가지 방식으로 세션 ID 확인
+      # 두 가지 방식으로 세션 ID 확인 (데이터 구조가 다를 수 있음)
       eventSessionId = data.session_id || data.data?.session_id
       console.log 'Final event session ID:', eventSessionId
       
