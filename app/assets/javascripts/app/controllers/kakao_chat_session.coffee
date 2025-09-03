@@ -540,6 +540,7 @@ class KakaoChatSession extends App.ControllerSubContent
         
         # 현재 세션 상세 화면에 있으므로 자동으로 읽음 처리
         console.log 'Auto-marking messages as read (user viewing session detail)'
+        console.log 'Before markMessagesAsRead - isActive:', @isActive, 'internalView:', @internalView, 'sessionId:', @sessionId
         @markMessagesAsRead()
       else
         console.log 'Session ID does not match, ignoring event'
@@ -643,15 +644,28 @@ class KakaoChatSession extends App.ControllerSubContent
 
   # 메시지 읽음 처리 (디바운스)
   markMessagesAsRead: =>
-    return unless @sessionId and @isActive and @internalView is 'kakao_chat_session'
+    console.log 'markMessagesAsRead called - sessionId:', @sessionId, 'isActive:', @isActive, 'internalView:', @internalView
     
-    console.log 'markMessagesAsRead called for session:', @sessionId, 'isActive:', @isActive, 'internalView:', @internalView
+    if not @sessionId
+      console.log 'markMessagesAsRead skipped - no sessionId'
+      return
+      
+    if not @isActive
+      console.log 'markMessagesAsRead skipped - not active'
+      return
+      
+    if @internalView isnt 'kakao_chat_session'
+      console.log 'markMessagesAsRead skipped - not in session detail view, current internalView:', @internalView
+      return
+    
+    console.log 'markMessagesAsRead proceeding for session:', @sessionId
     
     # 디바운스: 500ms 내에 여러 호출이 있으면 마지막 것만 실행
     @delay(=>
-      # 실행 시점에 다시 한번 확인
-      if not @isActive or KakaoChatSession.getActiveView() isnt 'kakao_chat_session'
+      # 실행 시점에 다시 한번 확인 - internalView로 확인
+      if not @isActive or @internalView isnt 'kakao_chat_session'
         console.log 'Canceling mark as read - view changed during delay or not in session detail'
+        console.log 'Current state: isActive=', @isActive, 'internalView=', @internalView
         return
         
       console.log 'Executing delayed mark messages as read for session:', @sessionId
