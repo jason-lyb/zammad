@@ -447,6 +447,9 @@ class KakaoChatSession extends App.ControllerSubContent
     @sendingMessage = true
     console.log 'Sending message:', content
     
+    # 대기중 세션에서 첫 메시지인지 확인
+    isFirstMessageInWaitingSession = @session?.status is 'waiting'
+    
     App.Ajax.request(
       id: 'kakao_chat_send_message'
       type: 'POST'
@@ -458,7 +461,14 @@ class KakaoChatSession extends App.ControllerSubContent
         console.log 'Message sent successfully:', data
         @el.find('.js-message-input').val('')
         
-        # 메시지 전송 완료 - WebSocket 이벤트가 모든 업데이트를 자동으로 처리함
+        # 대기중 세션에서 첫 메시지 전송 시 세션 정보 업데이트
+        if isFirstMessageInWaitingSession
+          console.log 'First message sent in waiting session, updating session info...'
+          @loadSession().then =>
+            console.log 'Session info updated after first message'
+            @render()  # 상태 변경을 반영하여 화면 재렌더링
+        
+        # 메시지 전송 완료 - WebSocket 이벤트가 추가 업데이트를 자동으로 처리함
       error: (xhr, status, error) =>
         @sendingMessage = false
         console.error 'Failed to send message:', error
