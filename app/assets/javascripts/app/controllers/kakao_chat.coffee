@@ -256,7 +256,14 @@ class KakaoChat extends App.Controller
     # 세션 행 클릭 시 상세 페이지로 이동
     @el.on('click', '.session-row', (e) =>
       sessionId = $(e.currentTarget).data('session-id')
-      console.log 'session click', sessionId      
+      console.log 'session click', sessionId   
+
+      # KakaoChatSession 데이터 강제 초기화
+      if window.App?.KakaoChatSession?
+        window.App.KakaoChatSession.session = null
+        window.App.KakaoChatSession.messages = []
+        window.App.KakaoChatSession.agents = []      
+
       @navigate("#kakao_chat/#{sessionId}")
     )
     

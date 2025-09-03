@@ -18,12 +18,24 @@ class KakaoChatSession extends App.ControllerSubContent
     @agents = []
     
     # 세션 데이터 로드
-    @loadSession()
+    #@loadSession()
     
     # 상담원 목록 로드
-    @loadAgents()
+    #@loadAgents()
     
     # WebSocket 이벤트 바인딩
+    #@bindWebSocketEvents()
+
+  show: (params) =>
+    # 화면 진입마다 데이터 초기화 및 Ajax 호출
+    @sessionId = params.session_id
+    @isActive = true
+    @setActiveView('kakao_chat_session')
+    @session = null
+    @messages = []
+    @agents = []
+    @loadSession()
+    @loadAgents()
     @bindWebSocketEvents()
 
   # 세션 데이터 로드
@@ -518,6 +530,11 @@ class KakaoChatSession extends App.ControllerSubContent
     @clearDelay('auto_scroll')
     @clearDelay('load_messages')
     
+    # 세션 데이터 완전 초기화
+    @session = null
+    @messages = []
+    @agents = []
+
     # 컨트롤러 바인딩 해제 (필요시)
     # @controllerUnbind('kakao_message_received')
     # @controllerUnbind('kakao_messages_read')
