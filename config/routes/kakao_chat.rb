@@ -18,7 +18,10 @@ Zammad::Application.routes.draw do
     # 카카오톡에서 메시지 수신 (Webhook)
     post   '/kakao_chat/message',                     to: 'kakao_chat#receive_message'
     
-    # 범용 메시지 전송 API
+    # 범용 메시지 전송 API (토큰 인증)
     post   '/kakao_chat/send_message',                to: 'kakao_chat#send_message_api'
+    
+    # 범용 상담 종료 API (토큰 인증)
+    post   '/kakao_chat/end_session',                 to: 'kakao_chat#end_session_api'
   end
 end

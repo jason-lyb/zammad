@@ -1,6 +1,6 @@
 class KakaoChatController < ApplicationController
-  prepend_before_action -> { authentication_check && authorize! }, except: [:receive_message]
-  skip_before_action :verify_csrf_token, only: [:receive_message]
+  prepend_before_action -> { authentication_check && authorize! }, except: [:receive_message, :send_message_api, :end_session_api]
+  skip_before_action :verify_csrf_token, only: [:receive_message, :send_message_api, :end_session_api]
 
   # 카카오톡 상담 세션 목록
   def sessions
@@ -432,8 +432,8 @@ class KakaoChatController < ApplicationController
       session = KakaoConsultationSession.find_by(session_id: session_id)
       return render json: { error: 'Session not found' }, status: :not_found unless session
       
-      # 접근 권한 확인
-      return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
+      # 접근 권한 확인 (API 토큰 인증 시에는 스킵)
+      # return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
       return render json: { error: 'Session is ended' }, status: :bad_request if session.status == 'ended'
       
       # waiting 상태인 경우 active로 변경 (상담원이 첫 메시지를 보낼 때)
@@ -495,6 +495,119 @@ class KakaoChatController < ApplicationController
     rescue StandardError => e
       Rails.logger.error "Failed to send message via API: #{e.message}"
       render json: { error: 'Failed to send message' }, status: :internal_server_error
+    end
+  end
+
+  # 범용 상담 종료 API
+  def end_session_api
+    # Zammad 기본 API 토큰 인증 사용
+    return render json: { error: 'API token authentication required' }, status: :unauthorized unless verify_zammad_api_token
+    
+    # 필수 파라미터 확인
+    session_id = params[:session_id]
+    reason = params[:reason] || '상담 완료'
+    ended_by = params[:ended_by] || 'agent'
+    agent_id = params[:agent_id]
+    
+    return render json: { error: 'session_id is required' }, status: :bad_request if session_id.blank?
+    return render json: { error: 'ended_by must be agent or customer' }, status: :bad_request unless %w[agent customer].include?(ended_by)
+    
+    begin
+      # 세션 조회
+      session = KakaoConsultationSession.find_by(session_id: session_id)
+      return render json: { error: 'Session not found' }, status: :not_found unless session
+      
+      # 이미 종료된 세션인지 확인
+      return render json: { error: 'Session already ended' }, status: :bad_request if session.status == 'ended'
+      
+      # 상담원이 종료하는 경우 agent_id 확인
+      ending_agent = nil
+      if ended_by == 'agent'
+        if agent_id.present?
+          ending_agent = User.find_by(id: agent_id)
+          return render json: { error: 'Agent not found' }, status: :not_found unless ending_agent
+          return render json: { error: 'User is not an agent' }, status: :bad_request unless ending_agent.permissions?(['chat.agent'])
+        else
+          ending_agent = current_user if current_user&.permissions?(['chat.agent'])
+        end
+      end
+      
+      # 세션 종료 처리
+      update_params = {
+        status: 'ended',
+        ended_at: Time.current
+      }
+      
+      # end_reason 필드가 존재하는 경우에만 추가
+      if session.respond_to?(:end_reason=)
+        update_params[:end_reason] = reason
+      end
+      
+      session.update!(update_params)
+      
+      # 종료 메시지 추가
+      end_message_content = if ended_by == 'agent'
+        "상담이 종료되었습니다. (종료 사유: #{reason})"
+      else
+        "고객이 상담을 종료했습니다."
+      end
+      
+      message = session.kakao_consultation_messages.create!(
+        content: end_message_content,
+        sender_type: 'system',
+        sender_name: 'System',
+        sent_at: Time.current,
+        message_type: 'text',
+        preferences: {
+          message_type: 'system',
+          end_reason: reason,
+          ended_by: ended_by
+        }
+      )
+      
+      # 세션의 마지막 메시지 정보 업데이트
+      session.update!(
+        last_message_at: message.sent_at,
+        last_message_content: message.content,
+        last_message_sender: message.sender_type
+      )
+      
+      # 통계 업데이트
+      update_session_stats(session, message)
+      
+      # 실시간 알림 전송
+      notify_agents(session, message)
+      
+      # 카카오톡 API에 종료 알림
+      notify_session_end_to_kakao(session)
+      
+      render json: {
+        status: 'success',
+        message: 'Session ended successfully',
+        session: {
+          id: session.id,
+          session_id: session.session_id,
+          status: session.status,
+          ended_at: session.ended_at,
+          end_reason: session.respond_to?(:end_reason) ? session.end_reason : reason,
+          duration: session.duration_formatted
+        },
+        end_message: {
+          id: message.id,
+          content: message.content,
+          sender_type: message.sender_type,
+          sent_at: message.sent_at
+        }
+      }
+      
+    rescue StandardError => e
+      Rails.logger.error "Failed to end session via API: #{e.message}"
+      Rails.logger.error "Backtrace: #{e.backtrace.join("\n")}"
+      render json: { 
+        error: 'Failed to end session', 
+        details: e.message,
+        class: e.class.name 
+      }, status: :internal_server_error
     end
   end
 
