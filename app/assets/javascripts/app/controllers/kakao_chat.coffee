@@ -23,7 +23,15 @@ class KakaoChat extends App.Controller
       # 현재 활성화되지 않은 경우 아무것도 하지 않음
       try
         return if !@featureActive() or !@isActive
-        console.log 'KakaoChat menu:render event'
+        
+        # 세션 상세 화면에 있으면 처리하지 않음
+        currentRoute = window.location.hash
+        isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
+        
+        if not isInSessionDetail
+          console.log 'KakaoChat menu:render event'
+        else
+          console.log 'KakaoChat menu:render event - skipping (in session detail)'
       catch error
         # console.log 'Error in menu:render featureActive check:', error
         return
@@ -69,10 +77,17 @@ class KakaoChat extends App.Controller
 
   # 주기적 새로고침 시작 (WebSocket 폴백)
   startPeriodicRefresh: =>
-    # 30초마다 세션 목록 새로고침
+    # 30초마다 세션 목록 새로고침 (세션 상세 화면이 아닐 때만)
     @refreshInterval = setInterval(=>
-      console.log 'Periodic refresh triggered'
-      @loadSessions()
+      # 현재 세션 상세 화면에 있으면 새로고침 하지 않음
+      currentRoute = window.location.hash
+      isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
+      
+      if @isActive and not isInSessionDetail
+        console.log 'Periodic refresh triggered'
+        @loadSessions()
+      else
+        console.log 'Skipping periodic refresh - in session detail or not active'
     , 30000)  # 30초 간격
 
   # 정리 시 인터벌 제거
@@ -130,10 +145,16 @@ class KakaoChat extends App.Controller
   render: =>
     # console.log 'KakaoChat render called with sessions:', @sessions?.length || 0
     
-    # 렌더링 시점에 activeView 재확인 및 설정
-    console.log 'KakaoChat render - current activeView before setting:', KakaoChat.getActiveView()
-    @setActiveView('kakao_chat_list')
-    console.log 'KakaoChat render - activeView after setting:', KakaoChat.getActiveView()
+    # 목록 화면에 있을 때만 activeView 설정 (세션 상세 화면에서는 건드리지 않음)
+    currentRoute = window.location.hash
+    isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
+    
+    if not isInSessionDetail
+      console.log 'KakaoChat render - current activeView before setting:', KakaoChat.getActiveView()
+      @setActiveView('kakao_chat_list')
+      console.log 'KakaoChat render - activeView after setting:', KakaoChat.getActiveView()
+    else
+      console.log 'KakaoChat render - skipping activeView setting (in session detail)'
     
     # 전역 접근을 위해 window에 인스턴스 저장 (개발/테스트용)
     window.kakaoChat = @
@@ -286,21 +307,23 @@ class KakaoChat extends App.Controller
   bindWebSocketEvents: =>
     console.log 'Binding WebSocket events for KakaoChat'
     
-    # CTI 패턴을 따라 구현
-        # WebSocket 이벤트 바인딩
+    # 새 메시지 수신 이벤트
     @controllerBind('kakao_message_received', (data) =>
       console.log 'KakaoChat received kakao_message_received event:', data
       console.log 'Current active view:', KakaoChat.getActiveView()
       
-      # 현재 채팅 목록 화면에 있을 때만 처리
-      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list'
+      # 현재 채팅 목록 화면에 있고, 세션 상세 화면이 아닐 때만 처리
+      currentRoute = window.location.hash
+      isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
+      
+      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list' and not isInSessionDetail
         console.log 'Processing message event in chat list view'
         delay = =>
           @loadSessions()
           @updateNavMenu()
         @delay(delay, 1000, 'kakao_refresh')
       else
-        console.log 'Ignoring message event - not in chat list view'
+        console.log 'Ignoring message event - not in chat list view or in session detail'
     )
     
     # 메시지 읽음 상태 업데이트
@@ -308,15 +331,18 @@ class KakaoChat extends App.Controller
       console.log 'KakaoChat received kakao_messages_read event:', data
       console.log 'Current active view:', KakaoChat.getActiveView()
       
-      # 현재 채팅 목록 화면에 있을 때만 처리
-      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list'
+      # 현재 채팅 목록 화면에 있고, 세션 상세 화면이 아닐 때만 처리
+      currentRoute = window.location.hash
+      isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
+      
+      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list' and not isInSessionDetail
         console.log 'Processing messages read event in chat list view'
         delay = =>
           @loadSessions()
           @updateNavMenu()
         @delay(delay, 500, 'kakao_read_refresh')
       else
-        console.log 'Ignoring messages read event - not in chat list view'
+        console.log 'Ignoring messages read event - not in chat list view or in session detail'
     )
     
     # 상담원 할당 알림
@@ -324,15 +350,18 @@ class KakaoChat extends App.Controller
       console.log 'KakaoChat received kakao_agent_assigned event:', data
       console.log 'Current active view:', KakaoChat.getActiveView()
       
-      # 현재 채팅 목록 화면에 있을 때만 처리
-      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list'
+      # 현재 채팅 목록 화면에 있고, 세션 상세 화면이 아닐 때만 처리
+      currentRoute = window.location.hash
+      isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
+      
+      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list' and not isInSessionDetail
         console.log 'Processing agent assigned event in chat list view'
         delay = =>
           @loadSessions()
           @updateNavMenu()
         @delay(delay, 500, 'kakao_assignment_refresh')
       else
-        console.log 'Ignoring agent assigned event - not in chat list view'
+        console.log 'Ignoring agent assigned event - not in chat list view or in session detail'
     )
     
     # 카운터 업데이트 이벤트도 처리
@@ -340,15 +369,17 @@ class KakaoChat extends App.Controller
       console.log 'KakaoChat received kakao_counter_update event:', data
       console.log 'Current active view:', KakaoChat.getActiveView()
       
-      # 현재 채팅 목록 화면에 있을 때만 처리
-      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list'
+      # 현재 채팅 목록 화면에 있고, 세션 상세 화면이 아닐 때만 처리
+      currentRoute = window.location.hash
+      isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
+      
+      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list' and not isInSessionDetail
         console.log 'Processing counter update event in chat list view'
         delay = =>
           @updateNavMenu()
         @delay(delay, 100, 'kakao_counter_update_render')
       else
-        console.log 'Ignoring counter update event - not in chat list view'
-      'kakao_counter_update'
+        console.log 'Ignoring counter update event - not in chat list view or in session detail'
     )
     
     # WebSocket 연결 상태 확인 (안전하게 처리)

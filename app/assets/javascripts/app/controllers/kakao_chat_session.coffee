@@ -10,7 +10,7 @@ class KakaoChatSession extends App.ControllerSubContent
     
     # 현재 화면이 활성화되어 있음을 표시
     @isActive = true
-    @setActiveView('kakao_chat_session')
+    @internalView = 'kakao_chat_session'  # 내부 상태만 관리, 네비게이션은 별도
     
     # 데이터 초기화
     @session = null
@@ -23,6 +23,13 @@ class KakaoChatSession extends App.ControllerSubContent
     # WebSocket 이벤트 바인딩 (constructor에서만 1회 실행)
     @bindWebSocketEvents()
     
+    # menu:render 이벤트 바인딩 - 네비게이션 하이라이트 유지
+    @controllerBind('menu:render', =>
+      if @isActive and @internalView is 'kakao_chat_session'
+        console.log 'KakaoChatSession menu:render event - navigation highlight already maintained'
+        # setNavigationHighlight 호출 제거 - show()에서 한번만 설정하면 충분
+    )
+    
     # 세션 데이터 로드는 show에서만 실행
     #@loadSession()
     
@@ -33,7 +40,7 @@ class KakaoChatSession extends App.ControllerSubContent
     # 화면 진입마다 데이터 초기화 및 Ajax 호출
     @sessionId = params.session_id
     @isActive = true
-    @setActiveView('kakao_chat_session')
+    @internalView = 'kakao_chat_session'  # 내부 상태만 관리
     @session = null
     @messages = []
     @agents = []
@@ -41,8 +48,11 @@ class KakaoChatSession extends App.ControllerSubContent
     @sendingMessage = false
     @loadingSession = false
     
-    # activeView 유지를 위한 주기적 확인
-    @startActiveViewMonitor()
+    # 네비게이션 하이라이트는 kakao_chat_list로 유지
+    @setNavigationHighlight('kakao_chat_list')
+    
+    # activeView 유지를 위한 주기적 확인 제거 (불필요한 중복 호출 방지)
+    # @startActiveViewMonitor()
     
     # 순차적으로 데이터 로드
     @loadSession().then =>
@@ -394,7 +404,8 @@ class KakaoChatSession extends App.ControllerSubContent
       console.log 'Navigating back to chat list, releasing session view'
       # 명시적으로 상세화면 정리
       @isActive = false
-      @setActiveView(null)
+      @internalView = null
+      @setNavigationHighlight(null)
       @navigate('#kakao_chat')
     )
     
@@ -447,13 +458,7 @@ class KakaoChatSession extends App.ControllerSubContent
         console.log 'Message sent successfully:', data
         @el.find('.js-message-input').val('')
         
-        # activeView 유지 확인
-        if KakaoChatSession.getActiveView() isnt 'kakao_chat_session'
-          console.log 'Restoring activeView to kakao_chat_session after message send'
-          @setActiveView('kakao_chat_session')
-        
-        # loadSession 호출 제거 - WebSocket 이벤트가 모든 업데이트를 처리함
-        # loadMessages 호출 제거 - WebSocket 이벤트가 자동으로 처리함
+        # 메시지 전송 완료 - WebSocket 이벤트가 모든 업데이트를 자동으로 처리함
       error: (xhr, status, error) =>
         @sendingMessage = false
         console.error 'Failed to send message:', error
@@ -509,24 +514,14 @@ class KakaoChatSession extends App.ControllerSubContent
       console.log 'Current session ID:', @sessionId
       console.log 'Current active view:', KakaoChatSession.getActiveView()
       console.log 'Session isActive:', @isActive
+      console.log 'Internal view:', @internalView
       console.log 'Event session ID (data.session_id):', data.session_id
       console.log 'Event session ID (data.data?.session_id):', data.data?.session_id
       
-      # 이 컨트롤러가 활성화되어 있고, 현재 세션 상세 화면이며, 해당 세션의 메시지일 때만 처리
-      if not @isActive
-        console.log 'Ignoring message event - session controller not active'
+      # 이 컨트롤러가 활성화되어 있고, 내부적으로 세션 상세 화면이며, 해당 세션의 메시지일 때만 처리
+      if not @isActive or @internalView isnt 'kakao_chat_session'
+        console.log 'Ignoring message event - session controller not active or not in session detail view'
         return
-      
-      currentView = KakaoChatSession.getActiveView()
-      if currentView isnt 'kakao_chat_session'
-        console.log 'Ignoring message event - not in session detail view, current view:', currentView
-        console.log 'Attempting to restore activeView to kakao_chat_session'
-        @setActiveView('kakao_chat_session')
-        # activeView 복원 후 다시 확인
-        if KakaoChatSession.getActiveView() isnt 'kakao_chat_session'
-          console.log 'Failed to restore activeView, still ignoring event'
-          return
-        console.log 'Successfully restored activeView, proceeding with event'
       
       # 두 가지 방식으로 세션 ID 확인 (데이터 구조가 다를 수 있음)
       eventSessionId = data.session_id || data.data?.session_id
@@ -609,10 +604,8 @@ class KakaoChatSession extends App.ControllerSubContent
   release: =>
     console.log 'KakaoChatSession release called for session:', @sessionId
     @isActive = false
-    @setActiveView(null)
-    
-    # activeView 모니터 정리
-    @stopActiveViewMonitor()
+    @internalView = null
+    @setNavigationHighlight(null)
     
     # 모든 delay 취소
     @clearDelay('mark_messages_read')
@@ -632,60 +625,27 @@ class KakaoChatSession extends App.ControllerSubContent
     @controllerUnbind('kakao_messages_read')
     @controllerUnbind('kakao_agent_assigned')
     
-    console.log 'KakaoChatSession released, isActive:', @isActive, 'activeView:', KakaoChatSession.getActiveView()
+    console.log 'KakaoChatSession released, isActive:', @isActive, 'internalView:', @internalView
     super if super
 
-  # 현재 활성화된 뷰 설정 (전역 상태)
-  setActiveView: (viewName) =>
+  # 네비게이션 하이라이트 설정 (네비게이션 바에서만 사용)
+  setNavigationHighlight: (viewName) =>
     if window.App
       oldView = window.App.activeKakaoView
       window.App.activeKakaoView = viewName
-      console.log "KakaoChatSession setActiveView: #{oldView} -> #{viewName}"
+      console.log "KakaoChatSession setNavigationHighlight: #{oldView} -> #{viewName}"
     else
-      console.log 'KakaoChatSession setActiveView: window.App not available'
+      console.log 'KakaoChatSession setNavigationHighlight: window.App not available'
     
   # 현재 활성화된 뷰 확인
   @getActiveView: =>
     window.App?.activeKakaoView || null
 
-  # activeView 모니터링 시작
-  startActiveViewMonitor: =>
-    # 기존 모니터 정리
-    @stopActiveViewMonitor()
-    
-    # 2초마다 activeView 확인 및 복원
-    @activeViewMonitor = setInterval(=>
-      if @isActive and KakaoChatSession.getActiveView() isnt 'kakao_chat_session'
-        console.log 'ActiveView monitor: restoring kakao_chat_session view'
-        @setActiveView('kakao_chat_session')
-    , 2000)
-    
-    console.log 'ActiveView monitor started'
-
-  # activeView 모니터링 중지
-  stopActiveViewMonitor: =>
-    if @activeViewMonitor
-      clearInterval(@activeViewMonitor)
-      @activeViewMonitor = null
-      console.log 'ActiveView monitor stopped'
-
   # 메시지 읽음 처리 (디바운스)
   markMessagesAsRead: =>
-    return unless @sessionId and @isActive
+    return unless @sessionId and @isActive and @internalView is 'kakao_chat_session'
     
-    # 현재 세션 상세 화면에 있을 때만 읽음 처리
-    currentView = KakaoChatSession.getActiveView()
-    if currentView isnt 'kakao_chat_session'
-      console.log 'Skipping mark as read - not in session detail view, current view:', currentView
-      console.log 'Attempting to restore activeView for markMessagesAsRead'
-      @setActiveView('kakao_chat_session')
-      # 복원 후 다시 확인
-      if KakaoChatSession.getActiveView() isnt 'kakao_chat_session'
-        console.log 'Failed to restore activeView for markMessagesAsRead, skipping'
-        return
-      console.log 'Successfully restored activeView for markMessagesAsRead'
-    
-    console.log 'markMessagesAsRead called for session:', @sessionId, 'isActive:', @isActive, 'currentView:', KakaoChatSession.getActiveView()
+    console.log 'markMessagesAsRead called for session:', @sessionId, 'isActive:', @isActive, 'internalView:', @internalView
     
     # 디바운스: 500ms 내에 여러 호출이 있으면 마지막 것만 실행
     @delay(=>
