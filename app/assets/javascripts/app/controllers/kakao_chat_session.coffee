@@ -17,14 +17,14 @@ class KakaoChatSession extends App.ControllerSubContent
     @messages = []
     @agents = []
     
-    # 세션 데이터 로드
+    # WebSocket 이벤트 바인딩 (constructor에서만 1회 실행)
+    @bindWebSocketEvents()
+    
+    # 세션 데이터 로드는 show에서만 실행
     #@loadSession()
     
-    # 상담원 목록 로드
+    # 상담원 목록 로드는 show에서만 실행
     #@loadAgents()
-    
-    # WebSocket 이벤트 바인딩
-    #@bindWebSocketEvents()
 
   show: (params) =>
     # 화면 진입마다 데이터 초기화 및 Ajax 호출
@@ -36,7 +36,7 @@ class KakaoChatSession extends App.ControllerSubContent
     @agents = []
     @loadSession()
     @loadAgents()
-    @bindWebSocketEvents()
+    # WebSocket 이벤트 바인딩은 constructor에서만 하므로 여기서는 제거
 
   # 세션 데이터 로드
   loadSession: =>
@@ -56,47 +56,59 @@ class KakaoChatSession extends App.ControllerSubContent
     )
 
   # 메시지 목록 로드
-  loadMessages: (skipRender = false) =>
+  loadMessages: (skipRender = false, isRealTimeUpdate = false) =>
+    return unless @sessionId  # sessionId 검증 추가
+    
     console.log 'Loading messages for session:', @sessionId
     console.log 'Current messages count:', @messages?.length || 0
+    console.log 'Is real-time update:', isRealTimeUpdate
     
     App.Ajax.request(
-      id: 'kakao_chat_messages'
+      id: "kakao_chat_messages_#{@sessionId}"  # 세션별 고유 ID
       type: 'GET'
       url: "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/messages"
       success: (data) =>
-        console.log 'Messages loaded:', data
-        console.log 'Previous message count:', @messages?.length || 0
-        
-        newMessages = data.messages || []
-        console.log 'New message count:', newMessages.length
-        
-        # 새 메시지만 감지하여 추가
-        if @messages and @messages.length > 0
-          # 기존 메시지 ID 목록
-          existingIds = @messages.map((msg) -> msg.id)
-          # 새로운 메시지만 필터링
-          addedMessages = newMessages.filter((msg) -> msg.id not in existingIds)
+        try
+          console.log 'Messages loaded:', data
           
-          if addedMessages.length > 0
-            console.log 'Found new messages:', addedMessages.length
-            @messages = newMessages  # 전체 메시지 배열 업데이트
-            @addNewMessagesToDOM(addedMessages)  # DOM에 새 메시지만 추가
-            # 새 메시지 추가 후 읽음 처리
-            @markMessagesAsRead()
+          newMessages = data.messages || []
+          console.log 'New message count:', newMessages.length
+          
+          # 실시간 업데이트이고 기존 메시지가 있는 경우 - 새 메시지만 추가
+          if isRealTimeUpdate and @messages?.length > 0
+            existingIds = @messages.map((msg) -> msg.id)
+            addedMessages = newMessages.filter((msg) -> 
+              existingIds.indexOf(msg.id) is -1  # 'not in' 대신 indexOf 사용
+            )
+            
+            if addedMessages.length > 0
+              console.log 'Found new messages:', addedMessages.length
+              @messages = newMessages
+              @addNewMessagesToDOM(addedMessages)
+              @markMessagesAsRead()
+            else
+              console.log 'No new messages found'
             return
-        
-        # 처음 로드이거나 전체 재렌더링이 필요한 경우
-        @messages = newMessages
-        if not skipRender
-          console.log 'About to call @render() for full message update'
-          @render()
-          console.log '@render() completed for full message update'
-          # 메시지 로드 후 읽음 처리
-          @markMessagesAsRead()
+          
+          # 처음 로드이거나 전체 재렌더링
+          console.log 'Full message reload'
+          @messages = newMessages
+          if not skipRender
+            @render()
+            @markMessagesAsRead()
+            
+        catch error
+          console.error 'Error processing messages:', error
+          @renderError('메시지 처리 중 오류가 발생했습니다.')
+          
       error: (xhr, status, error) =>
         console.error 'Failed to load messages:', error
-        @renderError('메시지를 불러올 수 없습니다.')
+        console.error 'XHR status:', status
+        console.error 'XHR response:', xhr.responseText
+        
+        # 실시간 업데이트 실패 시에는 에러 화면을 표시하지 않음
+        unless isRealTimeUpdate
+          @renderError('메시지를 불러올 수 없습니다.')
     )
 
   # 새 메시지를 DOM에 추가 (스크롤 위치 유지)
@@ -447,9 +459,9 @@ class KakaoChatSession extends App.ControllerSubContent
       console.log 'Event session ID (data.session_id):', data.session_id
       console.log 'Event session ID (data.data?.session_id):', data.data?.session_id
       
-      # 현재 세션 상세 화면에 있고, 해당 세션의 메시지일 때만 처리
-      if not @isActive or KakaoChatSession.getActiveView() isnt 'kakao_chat_session'
-        console.log 'Ignoring message event - session detail not active'
+      # 이 컨트롤러가 활성화되어 있고, 해당 세션의 메시지일 때만 처리
+      if not @isActive
+        console.log 'Ignoring message event - session controller not active'
         return
       
       # 두 가지 방식으로 세션 ID 확인 (데이터 구조가 다를 수 있음)
@@ -460,7 +472,7 @@ class KakaoChatSession extends App.ControllerSubContent
         console.log 'Session ID matches! Loading new messages...'
         
         # 새 메시지만 추가하는 방식으로 로드
-        @loadMessages()
+        @loadMessages(false, true)
         
         # 현재 세션 상세 화면에 있으므로 자동으로 읽음 처리
         console.log 'Auto-marking messages as read (user viewing session detail)'
@@ -482,15 +494,15 @@ class KakaoChatSession extends App.ControllerSubContent
       eventSessionId = data.session_id || data.data?.session_id
       console.log 'Extracted session ID:', eventSessionId, 'vs current session:', @sessionId
       
-      # 현재 세션 상세 화면에 있고, 해당 세션의 이벤트일 때만 처리
-      if @isActive and KakaoChatSession.getActiveView() is 'kakao_chat_session' and eventSessionId is @sessionId
+      # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리
+      if @isActive and eventSessionId is @sessionId
         console.log 'Processing messages read event in session detail view'
         console.log 'Messages marked as read by:', data.read_by_agent || data.data?.read_by_agent
         # 필요시 UI 업데이트 (예: 읽음 표시)
         @updateReadStatus(data.data || data)
       else
         console.log 'Ignoring messages read event - not in session detail view or different session'
-        console.log 'Conditions: isActive=', @isActive, 'activeView=', KakaoChatSession.getActiveView(), 'sessionMatch=', (eventSessionId is @sessionId)
+        console.log 'Conditions: isActive=', @isActive, 'sessionMatch=', (eventSessionId is @sessionId)
     )
     
     # 상담원 할당 알림
@@ -499,8 +511,8 @@ class KakaoChatSession extends App.ControllerSubContent
       console.log 'Current active view:', KakaoChatSession.getActiveView()
       console.log 'Session isActive:', @isActive
       
-      # 현재 세션 상세 화면에 있고, 해당 세션의 이벤트일 때만 처리
-      if @isActive and KakaoChatSession.getActiveView() is 'kakao_chat_session' and data.data?.session_id is @sessionId
+      # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리
+      if @isActive and data.data?.session_id is @sessionId
         console.log 'Processing agent assigned event in session detail view'
         console.log 'Agent assigned to session:', data.data.agent_name
         @loadSession() # 세션 정보 새로고침
@@ -535,10 +547,10 @@ class KakaoChatSession extends App.ControllerSubContent
     @messages = []
     @agents = []
 
-    # 컨트롤러 바인딩 해제 (필요시)
-    # @controllerUnbind('kakao_message_received')
-    # @controllerUnbind('kakao_messages_read')
-    # @controllerUnbind('kakao_agent_assigned')
+    # 컨트롤러 바인딩 해제 (중복 바인딩 방지)
+    @controllerUnbind('kakao_message_received')
+    @controllerUnbind('kakao_messages_read')
+    @controllerUnbind('kakao_agent_assigned')
     
     console.log 'KakaoChatSession released, isActive:', @isActive, 'activeView:', KakaoChatSession.getActiveView()
     super if super
@@ -560,7 +572,7 @@ class KakaoChatSession extends App.ControllerSubContent
   markMessagesAsRead: =>
     return unless @sessionId and @isActive
     
-    # 추가 안전장치: 현재 활성 뷰가 세션 상세인지 확인
+    # 현재 세션 상세 화면에 있을 때만 읽음 처리
     currentView = KakaoChatSession.getActiveView()
     if currentView isnt 'kakao_chat_session'
       console.log 'Skipping mark as read - not in session detail view, current view:', currentView
@@ -572,7 +584,7 @@ class KakaoChatSession extends App.ControllerSubContent
     @delay(=>
       # 실행 시점에 다시 한번 확인
       if not @isActive or KakaoChatSession.getActiveView() isnt 'kakao_chat_session'
-        console.log 'Canceling mark as read - view changed during delay'
+        console.log 'Canceling mark as read - view changed during delay or not in session detail'
         return
         
       console.log 'Executing delayed mark messages as read for session:', @sessionId
