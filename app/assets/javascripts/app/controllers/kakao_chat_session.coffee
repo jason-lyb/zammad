@@ -211,7 +211,7 @@ class KakaoChatSession extends App.ControllerSubContent
           <span class="time">#{timeStr}</span>
         </div>
         <div class="message-content" style="margin: 0; padding: 0; line-height: 1.2; font-size: 12px; word-wrap: break-word; overflow-wrap: break-word;">
-          #{App.Utils.htmlEscape(message.content)}
+          #{if message.content and message.content.trim() then App.Utils.htmlEscape(message.content) else ''}
           #{fileContent}
         </div>
       </div>

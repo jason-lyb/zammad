@@ -134,7 +134,6 @@ class KakaoChatController < ApplicationController
         sender_id: current_user.id,
         sender_name: current_user.fullname,
         sent_at: Time.current,
-        message_type: params[:message_type] || 'text',
         preferences: {
           message_type: params[:message_type] || 'text',
           attachments: params[:attachments] || []
@@ -193,7 +192,9 @@ class KakaoChatController < ApplicationController
         content: "#{current_user.fullname} 상담원이 상담을 시작했습니다.",
         sender_type: 'system',
         sent_at: Time.current,
-        message_type: 'system'
+        preferences: {
+          message_type: 'system'
+        }
       )
       
       render json: {
@@ -226,7 +227,9 @@ class KakaoChatController < ApplicationController
         content: "상담이 종료되었습니다.",
         sender_type: 'system',
         sent_at: Time.current,
-        message_type: 'system'
+        preferences: {
+          message_type: 'system'
+        }
       )
       
       # 카카오톡 API에 세션 종료 알림
@@ -277,7 +280,9 @@ class KakaoChatController < ApplicationController
         content: message_content,
         sender_type: 'system',
         sent_at: Time.current,
-        message_type: 'system'
+        preferences: {
+          message_type: 'system'
+        }
       )
       
       # 상담원 할당 알림 브로드캐스트
@@ -460,7 +465,6 @@ class KakaoChatController < ApplicationController
         sender_id: sender_id,
         sender_name: sender_name || (sender_type == 'system' ? 'System' : '알 수 없음'),
         sent_at: Time.current,
-        message_type: message_type,
         preferences: {
           message_type: message_type,
           attachments: params[:attachments] || []
@@ -568,7 +572,6 @@ class KakaoChatController < ApplicationController
         sender_type: 'system',
         sender_name: 'System',
         sent_at: Time.current,
-        message_type: 'text',
         preferences: {
           message_type: 'system',
           end_reason: reason,
@@ -720,12 +723,15 @@ class KakaoChatController < ApplicationController
       
       # 메시지 생성 (파일 첨부 메시지)
       message = session.kakao_consultation_messages.create!(
-        content: "파일이 업로드되었습니다: #{chat_file.filename}",
+        content: "",
         sender_type: 'agent',
         sender_name: current_user.fullname,
-        message_type: 'file',
         has_attachments: true,
-        attachment_count: 1
+        attachment_count: 1,
+        preferences: {
+          message_type: 'file',
+          attachments: []
+        }
       )
 
       # 파일과 메시지 연결
@@ -791,12 +797,15 @@ class KakaoChatController < ApplicationController
       # 메시지 생성
       sender_name = params[:sender_name] || 'System'
       message = session.kakao_consultation_messages.create!(
-        content: "파일이 업로드되었습니다: #{chat_file.filename}",
+        content: "",
         sender_type: 'system',
         sender_name: sender_name,
-        message_type: 'file',
         has_attachments: true,
-        attachment_count: 1
+        attachment_count: 1,
+        preferences: {
+          message_type: 'file',
+          attachments: []
+        }
       )
 
       # 파일과 메시지 연결
@@ -826,7 +835,7 @@ class KakaoChatController < ApplicationController
     end
 
     # 권한 확인 (세션에 접근 권한이 있는지)
-    unless can_access_session?(chat_file.session)
+    unless can_access_file?(chat_file)
       return render json: { error: 'Access denied' }, status: :forbidden
     end
 
@@ -834,6 +843,28 @@ class KakaoChatController < ApplicationController
               filename: chat_file.original_filename,
               type: chat_file.content_type,
               disposition: 'attachment'
+  end
+
+  # 파일 미리보기 (이미지 파일 등을 브라우저에서 직접 보기)
+  def preview_file
+    chat_file = KakaoChatFile.find(params[:file_id])
+    
+    unless chat_file.exists?
+      return render json: { error: 'File not found' }, status: :not_found
+    end
+
+    # 권한 확인
+    unless can_access_file?(chat_file)
+      return render json: { error: 'Access denied' }, status: :forbidden
+    end
+
+    # 이미지 파일인 경우 inline으로 표시, 그 외는 다운로드
+    disposition = chat_file.image? ? 'inline' : 'attachment'
+    
+    send_file chat_file.full_storage_path,
+              filename: chat_file.original_filename,
+              type: chat_file.content_type,
+              disposition: disposition
   end
 
   # 파일 썸네일
@@ -845,7 +876,7 @@ class KakaoChatController < ApplicationController
     end
 
     # 권한 확인
-    unless can_access_session?(chat_file.session)
+    unless can_access_file?(chat_file)
       return render json: { error: 'Access denied' }, status: :forbidden
     end
 
@@ -1459,13 +1490,25 @@ class KakaoChatController < ApplicationController
 
   def can_access_session?(session)
     # 토큰 인증인 경우 허용
-    return true if @token_auth
+    return true if @_token_auth
 
     # 로그인한 상담원인 경우 허용
     return false unless current_user
     return false unless current_user.permissions?(['chat.agent'])
     
     true
+  end
+
+  def can_access_file?(chat_file)
+    # 토큰 인증인 경우 허용
+    return true if @_token_auth
+
+    # 로그인한 상담원인 경우 세션 접근 권한 확인
+    return false unless current_user
+    return false unless current_user.permissions?(['chat.agent'])
+    
+    # 파일의 세션에 접근 권한이 있는지 확인
+    can_access_session?(chat_file.session)
   end
 
   def file_response_data(chat_file)
@@ -1477,7 +1520,9 @@ class KakaoChatController < ApplicationController
       file_size: chat_file.file_size,
       file_size_human: chat_file.file_size_human,
       file_category: chat_file.file_category,
+      is_image: chat_file.image?,
       download_url: chat_file.download_url,
+      preview_url: chat_file.preview_url,
       thumbnail_url: chat_file.thumbnail_url,
       metadata: chat_file.metadata,
       created_at: chat_file.created_at

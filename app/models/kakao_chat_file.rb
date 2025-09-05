@@ -1,5 +1,7 @@
 # Copyright (C) 2012-2025 Zammad Foundation, https://zammad-foundation.org/
 
+require 'shellwords'
+
 class KakaoChatFile < ApplicationModel
   include ApplicationModel::CanAssets
 
@@ -87,11 +89,15 @@ class KakaoChatFile < ApplicationModel
     File.read(full_storage_path)
   end
 
-  # 썸네일 생성 (이미지 파일만)
+  # 썸네일 생성 (이미지 파일만) - ImageMagick CLI 방식
   def generate_thumbnail(size = '150x150')
     return nil unless image? && exists?
     
-    require 'mini_magick'
+    # ImageMagick CLI 사용 가능 여부 확인
+    unless command_available?('convert')
+      Rails.logger.warn "ImageMagick not available - thumbnail generation skipped"
+      return nil
+    end
     
     thumbnail_path = Rails.root.join('storage', 'kakao_chat', 'thumbnails', "#{id}_#{size}.jpg")
     
@@ -101,14 +107,22 @@ class KakaoChatFile < ApplicationModel
     # 이미 존재하면 반환
     return File.read(thumbnail_path) if File.exist?(thumbnail_path)
     
-    # 썸네일 생성
+    # ImageMagick CLI로 썸네일 생성
     begin
-      image = MiniMagick::Image.open(full_storage_path)
-      image.resize(size)
-      image.format('jpeg')
-      image.write(thumbnail_path)
+      input_path = full_storage_path.to_s.shellescape
+      output_path = thumbnail_path.to_s.shellescape
       
-      File.read(thumbnail_path)
+      # ImageMagick convert 명령어 실행
+      command = "convert #{input_path} -resize #{size} -quality 85 #{output_path}"
+      
+      success = system(command)
+      
+      if success && File.exist?(thumbnail_path)
+        File.read(thumbnail_path)
+      else
+        Rails.logger.error "Failed to generate thumbnail for file #{id}: ImageMagick convert command failed"
+        nil
+      end
     rescue => e
       Rails.logger.error "Failed to generate thumbnail for file #{id}: #{e.message}"
       nil
@@ -117,15 +131,44 @@ class KakaoChatFile < ApplicationModel
 
   # URL 생성
   def download_url
+    Rails.application.routes.url_helpers.url_for(
+      controller: 'kakao_chat',
+      action: 'download_file',
+      file_id: id,
+      only_path: true
+    )
+  rescue
     "/api/v1/kakao_chat/files/#{id}"
+  end
+
+  def preview_url
+    Rails.application.routes.url_helpers.url_for(
+      controller: 'kakao_chat',
+      action: 'preview_file',
+      file_id: id,
+      only_path: true
+    )
+  rescue
+    "/api/v1/kakao_chat/files/#{id}/preview"
   end
 
   def thumbnail_url
     return nil unless image?
+    Rails.application.routes.url_helpers.url_for(
+      controller: 'kakao_chat',
+      action: 'file_thumbnail',
+      file_id: id,
+      only_path: true
+    )
+  rescue
     "/api/v1/kakao_chat/files/#{id}/thumbnail"
   end
 
   private
+
+  def command_available?(command)
+    system("which #{command.shellescape} > /dev/null 2>&1")
+  end
 
   def set_defaults
     if filename.present?
