@@ -1,0 +1,243 @@
+/* 카카오톡 채팅 파일 업로드 스타일 */
+
+/* 드래그 앤 드롭 영역 */
+.message-input-form.drag-over {
+  border: 2px dashed #007bff !important;
+  background-color: #f8f9fa !important;
+}
+
+/* 파일 미리보기 영역 */
+.file-preview {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  background-color: #f8f9f9;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* 파일 미리보기 아이템 */
+.file-preview-item {
+  display: inline-block;
+  margin: 4px;
+  padding: 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  background-color: white;
+  position: relative;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.file-preview-item:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transform: translateY(-1px);
+}
+
+/* 파일 제거 버튼 */
+.file-preview-item .js-remove-file {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-preview-item .js-remove-file:hover {
+  background-color: #c82333;
+}
+
+/* 메시지 파일 표시 */
+.message-files {
+  margin-top: 6px;
+}
+
+.file-item {
+  margin: 4px 0;
+  padding: 6px;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+  max-width: 250px;
+}
+
+.file-item.image-file {
+  text-align: center;
+}
+
+.file-item .file-header {
+  display: flex;
+  align-items: center;
+}
+
+.file-item .file-icon {
+  font-size: 18px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.file-item .file-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-item .file-name {
+  font-size: 12px;
+  font-weight: bold;
+  color: #495057;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-item .file-meta {
+  font-size: 10px;
+  color: #6c757d;
+  margin-top: 2px;
+}
+
+.file-item .file-actions {
+  margin-top: 6px;
+  text-align: center;
+}
+
+.file-item .file-actions .btn {
+  font-size: 10px;
+  padding: 2px 8px;
+}
+
+/* 이미지 썸네일 */
+.file-item .file-thumbnail img {
+  max-width: 150px;
+  max-height: 150px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.file-item .file-thumbnail img:hover {
+  opacity: 0.8;
+}
+
+/* 이미지 모달 */
+.image-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-modal-content {
+  position: relative;
+  max-width: 90%;
+  max-height: 90%;
+  background-color: white;
+  border-radius: 6px;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.image-modal-content .modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6c757d;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.image-modal-content .modal-close:hover {
+  background-color: #f8f9fa;
+  color: #495057;
+}
+
+.image-modal-content img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.image-modal-content .modal-actions {
+  text-align: center;
+  margin-top: 15px;
+}
+
+/* 파일 업로드 버튼 */
+.js-attach-file {
+  margin-right: 8px;
+}
+
+/* 메시지 입력 영역 레이아웃 */
+.message-input-form .input-area {
+  margin-bottom: 10px;
+}
+
+.message-input-form .form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .file-item {
+    max-width: 200px;
+  }
+  
+  .file-item .file-thumbnail img {
+    max-width: 120px;
+    max-height: 120px;
+  }
+  
+  .image-modal-content {
+    max-width: 95%;
+    max-height: 95%;
+    padding: 15px;
+  }
+}
+
+/* 로딩 상태 */
+.file-uploading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.file-uploading::after {
+  content: '업로드 중...';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+}

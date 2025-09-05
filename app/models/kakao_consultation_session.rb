@@ -5,6 +5,7 @@
 class KakaoConsultationSession < ActiveRecord::Base
   has_many :kakao_consultation_messages, foreign_key: 'kakao_consultation_session_id', dependent: :destroy
   has_one :kakao_consultation_stats, dependent: :destroy
+  has_many :kakao_chat_files, foreign_key: 'session_id', dependent: :destroy
   belongs_to :agent, class_name: 'User', foreign_key: 'agent_id', optional: true
 
   validates :session_id, presence: true, uniqueness: true

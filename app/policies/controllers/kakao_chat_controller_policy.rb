@@ -48,4 +48,28 @@ class Controllers::KakaoChatControllerPolicy < Controllers::ApplicationControlle
     true
   end
 
+  def end_session_api?
+    # API는 자체 토큰 인증을 사용하므로 Pundit에서는 허용
+    true
+  end
+
+  def upload_file?
+    user.permissions?(['admin.integration', 'chat.agent'])
+  end
+
+  def upload_file_api?
+    # API는 자체 토큰 인증을 사용하므로 Pundit에서는 허용
+    true
+  end
+
+  def download_file?
+    # 파일 다운로드는 컨트롤러에서 별도 권한 확인
+    true
+  end
+
+  def file_thumbnail?
+    # 썸네일은 컨트롤러에서 별도 권한 확인
+    true
+  end
+
 end

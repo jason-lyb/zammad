@@ -21,6 +21,12 @@ Zammad::Application.routes.draw do
     # 범용 메시지 전송 API (토큰 인증)
     post   '/kakao_chat/send_message',                to: 'kakao_chat#send_message_api'
     
+    # 파일 업로드 및 전송 API
+    post   '/kakao_chat/sessions/:id/upload',         to: 'kakao_chat#upload_file', constraints: { id: /[^\/]+/ }
+    post   '/kakao_chat/upload_file',                 to: 'kakao_chat#upload_file_api'  # 토큰 인증용
+    get    '/kakao_chat/files/:file_id',              to: 'kakao_chat#download_file'
+    get    '/kakao_chat/files/:file_id/thumbnail',    to: 'kakao_chat#file_thumbnail'
+    
     # 범용 상담 종료 API (토큰 인증)
     post   '/kakao_chat/end_session',                 to: 'kakao_chat#end_session_api'
   end

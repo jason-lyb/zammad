@@ -2,6 +2,7 @@
 class KakaoConsultationMessage < ApplicationModel
   belongs_to :kakao_consultation_session
   belongs_to :sender_user, class_name: 'User', foreign_key: 'sender_id', optional: true
+  has_many :kakao_chat_files, foreign_key: 'message_id', dependent: :destroy
 
   validates :content, presence: true
   validates :sender_type, inclusion: { in: %w[customer agent system] }

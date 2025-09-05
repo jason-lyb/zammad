@@ -197,19 +197,120 @@ class KakaoChatSession extends App.ControllerSubContent
     # 상담원 메시지는 오른쪽 정렬, 나머지는 왼쪽 정렬
     alignmentClass = if message.sender_type is 'agent' then 'message-right' else 'message-left'
     
+    # 파일 첨부 렌더링
+    fileContent = if message.has_attachments and message.files?.length > 0
+      @renderMessageFiles(message.files)
+    else
+      ''
+    
     """
-    <div class="message message-#{senderClass} #{alignmentClass}">
-      <div class="message-bubble">
-        <div class="message-header">
-          <strong>#{message.sender_name || message.sender_type}</strong>
+    <div class="message message-#{senderClass} #{alignmentClass}" style="margin: 1px 0; padding: 1px 2px;">
+      <div class="message-bubble" style="padding: 2px 4px; border-radius: 3px;">
+        <div class="message-header" style="font-size: 11px; opacity: 0.7; margin: 0; padding: 0; display: flex; justify-content: space-between; align-items: center; height: 12px;">
+          <span class="sender">#{message.sender_name || message.sender_type}</span>
           <span class="time">#{timeStr}</span>
         </div>
-        <div class="message-content">
+        <div class="message-content" style="margin: 0; padding: 0; line-height: 1.2; font-size: 12px; word-wrap: break-word; overflow-wrap: break-word;">
           #{App.Utils.htmlEscape(message.content)}
+          #{fileContent}
         </div>
       </div>
     </div>
     """
+
+  # 메시지 파일 렌더링
+  renderMessageFiles: (files) =>
+    return '' unless files?.length > 0
+    
+    filesHtml = files.map((file) =>
+      @renderSingleFile(file)
+    ).join('')
+    
+    """
+    <div class="message-files" style="margin-top: 4px;">
+      #{filesHtml}
+    </div>
+    """
+
+  # 단일 파일 렌더링
+  renderSingleFile: (file) =>
+    fileIcon = @getFileIcon(file.file_category, file.content_type)
+    
+    if file.file_category is 'image'
+      # 이미지 파일은 썸네일 표시
+      """
+      <div class="file-item image-file" style="margin: 2px 0; padding: 4px; border: 1px solid #ddd; border-radius: 3px; background: #f9f9f9;">
+        <div class="file-thumbnail" style="text-align: center;">
+          <img src="#{file.thumbnail_url}" alt="#{file.filename}" 
+               style="max-width: 150px; max-height: 150px; cursor: pointer; border-radius: 2px;" 
+               class="js-image-preview" data-file-id="#{file.id}" data-download-url="#{file.download_url}">
+        </div>
+        <div class="file-info" style="font-size: 10px; margin-top: 2px; text-align: center;">
+          <div class="file-name" style="font-weight: bold;">#{App.Utils.htmlEscape(file.filename)}</div>
+          <div class="file-size" style="color: #666;">#{file.file_size_human}</div>
+        </div>
+      </div>
+      """
+    else if file.file_category is 'video'
+      # 동영상 파일
+      """
+      <div class="file-item video-file" style="margin: 2px 0; padding: 4px; border: 1px solid #ddd; border-radius: 3px; background: #f9f9f9;">
+        <div class="file-header" style="display: flex; align-items: center;">
+          <span class="file-icon" style="font-size: 16px; margin-right: 4px;">#{fileIcon}</span>
+          <div class="file-details" style="flex: 1;">
+            <div class="file-name" style="font-size: 11px; font-weight: bold;">#{App.Utils.htmlEscape(file.filename)}</div>
+            <div class="file-meta" style="font-size: 10px; color: #666;">
+              동영상 • #{file.file_size_human}
+              #{if file.metadata?.resolution then ' • ' + file.metadata.resolution else ''}
+            </div>
+          </div>
+        </div>
+        <div class="file-actions" style="margin-top: 4px; text-align: center;">
+          <a href="#{file.download_url}" class="btn btn--secondary btn--small" target="_blank">다운로드</a>
+        </div>
+      </div>
+      """
+    else
+      # 기타 파일 (문서, 아카이브 등)
+      """
+      <div class="file-item document-file" style="margin: 2px 0; padding: 4px; border: 1px solid #ddd; border-radius: 3px; background: #f9f9f9;">
+        <div class="file-header" style="display: flex; align-items: center;">
+          <span class="file-icon" style="font-size: 16px; margin-right: 4px;">#{fileIcon}</span>
+          <div class="file-details" style="flex: 1;">
+            <div class="file-name" style="font-size: 11px; font-weight: bold;">#{App.Utils.htmlEscape(file.filename)}</div>
+            <div class="file-meta" style="font-size: 10px; color: #666;">#{@getFileTypeLabel(file.file_category)} • #{file.file_size_human}</div>
+          </div>
+        </div>
+        <div class="file-actions" style="margin-top: 4px; text-align: center;">
+          <a href="#{file.download_url}" class="btn btn--secondary btn--small" target="_blank">다운로드</a>
+        </div>
+      </div>
+      """
+
+  # 파일 아이콘 반환
+  getFileIcon: (category, contentType) =>
+    switch category
+      when 'image' then '🖼️'
+      when 'video' then '🎥'
+      when 'audio' then '🎵'
+      when 'document'
+        if contentType.includes('pdf') then '📄'
+        else if contentType.includes('word') then '📝'
+        else if contentType.includes('excel') or contentType.includes('sheet') then '📊'
+        else if contentType.includes('powerpoint') or contentType.includes('presentation') then '📊'
+        else '📄'
+      when 'archive' then '📦'
+      else '📎'
+
+  # 파일 타입 레이블 반환
+  getFileTypeLabel: (category) =>
+    switch category
+      when 'image' then '이미지'
+      when 'video' then '동영상'
+      when 'audio' then '오디오'
+      when 'document' then '문서'
+      when 'archive' then '압축파일'
+      else '파일'
 
   # 부드러운 스크롤
   smoothScrollToBottom: =>
@@ -337,8 +438,15 @@ class KakaoChatSession extends App.ControllerSubContent
     <div class="message-input-container">
       <h3>메시지 보내기</h3>
       <div class="message-input-form">
-        <textarea class="js-message-input" placeholder="#{placeholder}" rows="3"></textarea>
+        <div class="input-area">
+          <textarea class="js-message-input" placeholder="#{placeholder}" rows="3"></textarea>
+          <div class="file-upload-area">
+            <input type="file" class="js-file-input" multiple accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.gz" style="display: none;">
+            <div class="file-preview js-file-preview" style="display: none;"></div>
+          </div>
+        </div>
         <div class="form-actions">
+          <button class="btn btn--secondary js-attach-file" title="파일 첨부">📎 파일</button>
           <button class="btn btn--primary js-send-message">전송</button>
         </div>
       </div>
@@ -397,6 +505,10 @@ class KakaoChatSession extends App.ControllerSubContent
     # 기존 이벤트 제거 (중복 방지)
     @el.off('click.kakao-session')
     @el.off('keydown.kakao-session')
+    @el.off('change.kakao-session')
+    @el.off('paste.kakao-session')
+    @el.off('dragover.kakao-session')
+    @el.off('drop.kakao-session')
     
     # 목록으로 돌아가기
     @el.on('click.kakao-session', '.js-back', (e) =>
@@ -422,6 +534,57 @@ class KakaoChatSession extends App.ControllerSubContent
         @sendMessage()
     )
     
+    # 파일 첨부 버튼
+    @el.on('click.kakao-session', '.js-attach-file', (e) =>
+      e.preventDefault()
+      @el.find('.js-file-input').click()
+    )
+    
+    # 파일 선택
+    @el.on('change.kakao-session', '.js-file-input', (e) =>
+      @handleFileSelection(e.target.files)
+    )
+    
+    # 클립보드 붙여넣기 (이미지)
+    @el.on('paste.kakao-session', '.js-message-input', (e) =>
+      @handlePaste(e.originalEvent)
+    )
+    
+    # 드래그 앤 드롭
+    @el.on('dragover.kakao-session', '.message-input-form', (e) =>
+      e.preventDefault()
+      e.stopPropagation()
+      $(e.currentTarget).addClass('drag-over')
+    )
+    
+    @el.on('dragleave.kakao-session', '.message-input-form', (e) =>
+      e.preventDefault()
+      e.stopPropagation()
+      $(e.currentTarget).removeClass('drag-over')
+    )
+    
+    @el.on('drop.kakao-session', '.message-input-form', (e) =>
+      e.preventDefault()
+      e.stopPropagation()
+      $(e.currentTarget).removeClass('drag-over')
+      
+      files = e.originalEvent.dataTransfer.files
+      if files.length > 0
+        @handleFileSelection(files)
+    )
+    
+    # 이미지 미리보기 클릭
+    @el.on('click.kakao-session', '.js-image-preview', (e) =>
+      e.preventDefault()
+      @showImageModal($(e.currentTarget))
+    )
+    
+    # 파일 미리보기 제거
+    @el.on('click.kakao-session', '.js-remove-file', (e) =>
+      e.preventDefault()
+      @removeFilePreview($(e.currentTarget))
+    )
+    
     # 상담 종료
     @el.on('click.kakao-session', '.js-end-session', (e) =>
       e.preventDefault()
@@ -434,46 +597,14 @@ class KakaoChatSession extends App.ControllerSubContent
       @assignAgent()
     )
 
-  # 메시지 전송
-  sendMessage: =>
-    content = @el.find('.js-message-input').val()?.trim()
-    return if not content
-    
-    # 이미 전송 중이면 중단
-    if @sendingMessage
-      console.log 'Message already being sent, skipping'
-      return
-    
-    @sendingMessage = true
-    console.log 'Sending message:', content
-    
-    # 대기중 세션에서 첫 메시지인지 확인
-    isFirstMessageInWaitingSession = @session?.status is 'waiting'
-    
-    App.Ajax.request(
-      id: 'kakao_chat_send_message'
-      type: 'POST'
-      url: "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/messages"
-      data: JSON.stringify(content: content)
-      processData: false
-      success: (data) =>
-        @sendingMessage = false
-        console.log 'Message sent successfully:', data
-        @el.find('.js-message-input').val('')
-        
-        # 대기중 세션에서 첫 메시지 전송 시 세션 정보 업데이트
-        if isFirstMessageInWaitingSession
-          console.log 'First message sent in waiting session, updating session info...'
-          @loadSession().then =>
-            console.log 'Session info updated after first message'
-            @render()  # 상태 변경을 반영하여 화면 재렌더링
-        
-        # 메시지 전송 완료 - WebSocket 이벤트가 추가 업데이트를 자동으로 처리함
-      error: (xhr, status, error) =>
-        @sendingMessage = false
-        console.error 'Failed to send message:', error
-        alert('메시지 전송에 실패했습니다.')
-    )
+  # 기존 scrollToBottom 메서드 (즉시 스크롤)
+  scrollToBottom: =>
+    @delay(=>
+      messagesList = @el.find('.messages-list')
+      if messagesList.length > 0
+        messagesList.scrollTop(messagesList[0].scrollHeight)
+        console.log 'Scrolled to bottom of messages'
+    , 100, 'scroll_to_bottom')
 
   # 상담 종료
   endSession: =>
@@ -514,6 +645,279 @@ class KakaoChatSession extends App.ControllerSubContent
       error: (xhr, status, error) =>
         console.error 'Failed to assign agent:', error
         alert('담당자 변경에 실패했습니다.')
+    )
+
+  # 파일 선택 처리
+  handleFileSelection: (files) =>
+    return unless files?.length > 0
+    
+    # 선택된 파일들을 배열로 변환
+    fileArray = Array.from(files)
+    
+    # 파일 개수 제한 (최대 5개)
+    if fileArray.length > 5
+      alert('한 번에 최대 5개의 파일만 업로드할 수 있습니다.')
+      return
+    
+    # 각 파일 검증 및 미리보기 생성
+    validFiles = []
+    for file in fileArray
+      validation = @validateFile(file)
+      if validation.valid
+        validFiles.push(file)
+      else
+        alert("파일 '#{file.name}': #{validation.error}")
+    
+    if validFiles.length > 0
+      @showFilePreview(validFiles)
+
+  # 클립보드 붙여넣기 처리
+  handlePaste: (event) =>
+    return unless event.clipboardData?.items
+    
+    files = []
+    for item in event.clipboardData.items
+      if item.type.indexOf('image') is 0
+        file = item.getAsFile()
+        if file
+          files.push(file)
+    
+    if files.length > 0
+      @handleFileSelection(files)
+
+  # 파일 검증
+  validateFile: (file) =>
+    # 파일 크기 검증 (10MB)
+    maxSize = 10 * 1024 * 1024  # 10MB
+    if file.size > maxSize
+      return { valid: false, error: '파일 크기가 10MB를 초과합니다.' }
+    
+    # 파일 확장자 검증
+    allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg',
+                        'mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv',
+                        'mp3', 'wav', 'aac', 'ogg', 'm4a', 'wma',
+                        'pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+                        'zip', 'rar', '7z', 'gz']
+    
+    extension = file.name.split('.').pop()?.toLowerCase()
+    unless extension in allowedExtensions
+      return { valid: false, error: '지원하지 않는 파일 형식입니다.' }
+    
+    { valid: true }
+
+  # 파일 미리보기 표시
+  showFilePreview: (files) =>
+    previewArea = @el.find('.js-file-preview')
+    previewArea.show()
+    
+    # 기존 미리보기 초기화
+    previewArea.empty()
+    
+    for file, index in files
+      previewItem = @createFilePreviewItem(file, index)
+      previewArea.append(previewItem)
+    
+    # 전송 버튼 텍스트 변경
+    @el.find('.js-send-message').text("파일 전송 (#{files.length}개)")
+
+  # 파일 미리보기 아이템 생성
+  createFilePreviewItem: (file, index) =>
+    fileType = @getFileTypeFromName(file.name)
+    fileIcon = @getFileIcon(fileType, file.type)
+    
+    # 이미지 파일인 경우 썸네일 생성
+    if file.type.startsWith('image/')
+      reader = new FileReader()
+      reader.onload = (e) =>
+        @el.find(".file-preview-item[data-index='#{index}'] .file-thumbnail img").attr('src', e.target.result)
+      reader.readAsDataURL(file)
+      
+      thumbnailHtml = '<img style="max-width: 80px; max-height: 80px; object-fit: cover;">'
+    else
+      thumbnailHtml = "<span style='font-size: 24px;'>#{fileIcon}</span>"
+    
+    """
+    <div class="file-preview-item" data-index="#{index}" style="display: inline-block; margin: 4px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; position: relative;">
+      <button class="js-remove-file" data-index="#{index}" style="position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 12px; cursor: pointer;">×</button>
+      <div class="file-thumbnail" style="text-align: center; margin-bottom: 4px;">
+        #{thumbnailHtml}
+      </div>
+      <div class="file-name" style="font-size: 10px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="#{file.name}">
+        #{file.name}
+      </div>
+      <div class="file-size" style="font-size: 9px; color: #666; text-align: center;">
+        #{@formatFileSize(file.size)}
+      </div>
+    </div>
+    """
+
+  # 파일 미리보기 제거
+  removeFilePreview: (button) =>
+    index = button.data('index')
+    button.closest('.file-preview-item').remove()
+    
+    # 남은 파일 개수 확인
+    remaining = @el.find('.file-preview-item').length
+    if remaining is 0
+      @el.find('.js-file-preview').hide()
+      @el.find('.js-send-message').text('전송')
+      @el.find('.js-file-input').val('')  # 파일 입력 초기화
+    else
+      @el.find('.js-send-message').text("파일 전송 (#{remaining}개)")
+
+  # 파일 타입 추출
+  getFileTypeFromName: (filename) =>
+    extension = filename.split('.').pop()?.toLowerCase()
+    
+    imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg']
+    videoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv']
+    audioExts = ['mp3', 'wav', 'aac', 'ogg', 'm4a', 'wma']
+    docExts = ['pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']
+    archiveExts = ['zip', 'rar', '7z', 'gz']
+    
+    if extension in imageExts then 'image'
+    else if extension in videoExts then 'video'
+    else if extension in audioExts then 'audio'
+    else if extension in docExts then 'document'
+    else if extension in archiveExts then 'archive'
+    else 'other'
+
+  # 파일 크기 포맷팅
+  formatFileSize: (bytes) =>
+    if bytes is 0 then return '0 Bytes'
+    
+    k = 1024
+    sizes = ['Bytes', 'KB', 'MB', 'GB']
+    i = Math.floor(Math.log(bytes) / Math.log(k))
+    
+    parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+
+  # 이미지 모달 표시
+  showImageModal: (imageElement) =>
+    fileId = imageElement.data('file-id')
+    downloadUrl = imageElement.data('download-url')
+    
+    # 모달 HTML 생성
+    modalHtml = """
+    <div class="image-modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+      <div class="image-modal-content" style="position: relative; max-width: 90%; max-height: 90%; background: white; border-radius: 4px; padding: 20px;">
+        <button class="modal-close" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        <img src="#{downloadUrl}" style="max-width: 100%; max-height: 70vh; object-fit: contain;">
+        <div class="modal-actions" style="text-align: center; margin-top: 15px;">
+          <a href="#{downloadUrl}" class="btn btn--primary" download>다운로드</a>
+        </div>
+      </div>
+    </div>
+    """
+    
+    # 모달을 body에 추가
+    $('body').append(modalHtml)
+    
+    # 모달 닫기 이벤트
+    $('.image-modal-backdrop').on('click', (e) =>
+      if e.target is e.currentTarget or $(e.target).hasClass('modal-close')
+        $('.image-modal-backdrop').remove()
+    )
+
+  # 메시지 전송 (수정: 파일 첨부 지원)
+  sendMessage: =>
+    content = @el.find('.js-message-input').val()?.trim()
+    files = @getSelectedFiles()
+    
+    # 텍스트와 파일 둘 다 없으면 전송하지 않음
+    return if not content and files.length is 0
+    
+    # 이미 전송 중이면 중단
+    if @sendingMessage
+      console.log 'Message already being sent, skipping'
+      return
+    
+    @sendingMessage = true
+    console.log 'Sending message with files:', content, files
+    
+    # 파일이 있으면 파일 업로드, 없으면 텍스트 메시지 전송
+    if files.length > 0
+      @uploadFiles(files, content)
+    else
+      @sendTextMessage(content)
+
+  # 선택된 파일들 가져오기
+  getSelectedFiles: =>
+    fileInput = @el.find('.js-file-input')[0]
+    return [] unless fileInput?.files?.length > 0
+    
+    Array.from(fileInput.files)
+
+  # 텍스트 메시지 전송
+  sendTextMessage: (content) =>
+    # 대기중 세션에서 첫 메시지인지 확인
+    isFirstMessageInWaitingSession = @session?.status is 'waiting'
+    
+    App.Ajax.request(
+      id: 'kakao_chat_send_message'
+      type: 'POST'
+      url: "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/messages"
+      data: JSON.stringify(content: content)
+      processData: false
+      success: (data) =>
+        @sendingMessage = false
+        console.log 'Message sent successfully:', data
+        @el.find('.js-message-input').val('')
+        
+        # 대기중 세션에서 첫 메시지 전송 시 세션 정보 업데이트
+        if isFirstMessageInWaitingSession
+          console.log 'First message sent in waiting session, updating session info...'
+          @loadSession().then =>
+            console.log 'Session info updated after first message'
+            @render()  # 상태 변경을 반영하여 화면 재렌더링
+        
+        # 메시지 전송 완료 - WebSocket 이벤트가 추가 업데이트를 자동으로 처리함
+      error: (xhr, status, error) =>
+        @sendingMessage = false
+        console.error 'Failed to send message:', error
+        alert('메시지 전송에 실패했습니다.')
+    )
+
+  # 파일 업로드
+  uploadFiles: (files, content = '') =>
+    formData = new FormData()
+    
+    # 파일들 추가
+    for file in files
+      formData.append('file', file)
+    
+    # 메시지 내용 추가 (선택사항)
+    if content
+      formData.append('content', content)
+    
+    $.ajax(
+      url: "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/upload"
+      type: 'POST'
+      data: formData
+      processData: false
+      contentType: false
+      headers:
+        'X-CSRF-Token': $('meta[name=csrf-token]').attr('content')
+      success: (data) =>
+        @sendingMessage = false
+        console.log 'Files uploaded successfully:', data
+        
+        # 입력 필드 초기화
+        @el.find('.js-message-input').val('')
+        @el.find('.js-file-input').val('')
+        @el.find('.js-file-preview').hide().empty()
+        @el.find('.js-send-message').text('전송')
+        
+        # WebSocket 이벤트가 새 메시지를 자동으로 추가함
+      error: (xhr, status, error) =>
+        @sendingMessage = false
+        console.error 'Failed to upload files:', error
+        
+        try
+          response = JSON.parse(xhr.responseText)
+          alert("파일 업로드 실패: #{response.error}")
+        catch
+          alert('파일 업로드에 실패했습니다.')
     )
 
   # WebSocket 이벤트 바인딩

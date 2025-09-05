@@ -1,6 +1,6 @@
 class KakaoChatController < ApplicationController
-  prepend_before_action -> { authentication_check && authorize! }, except: [:receive_message, :send_message_api, :end_session_api]
-  skip_before_action :verify_csrf_token, only: [:receive_message, :send_message_api, :end_session_api]
+  prepend_before_action -> { authentication_check && authorize! }, except: [:receive_message, :send_message_api, :end_session_api, :upload_file_api, :download_file, :file_thumbnail]
+  skip_before_action :verify_csrf_token, only: [:receive_message, :send_message_api, :end_session_api, :upload_file_api]
 
   # 카카오톡 상담 세션 목록
   def sessions
@@ -70,6 +70,14 @@ class KakaoChatController < ApplicationController
     # mark_messages_as_read_by_user(session, current_user) # 제거됨
 
     messages_data = messages.map do |message|
+      # 첨부 파일 정보 조회
+      attached_files = []
+      if message.message_type == 'file' && message.has_attachments
+        attached_files = KakaoChatFile.where(message: message).map do |file|
+          file_response_data(file)
+        end
+      end
+
       {
         id: message.id,
         content: message.content,
@@ -78,7 +86,10 @@ class KakaoChatController < ApplicationController
         message_type: message.message_type,
         sent_at: message.sent_at,
         read_by_agent: message.read_by_agent,
-        preferences: message.preferences
+        preferences: message.preferences,
+        has_attachments: message.has_attachments || false,
+        attachment_count: message.attachment_count || 0,
+        files: attached_files
       }
     end
 
@@ -681,6 +692,174 @@ class KakaoChatController < ApplicationController
     end
   end
 
+  # 파일 업로드 (세션별)
+  def upload_file
+    return render json: { error: 'KakaoTalk integration not enabled' }, status: :forbidden unless kakao_integration_enabled?
+    return render json: { error: 'Access denied' }, status: :forbidden unless current_user.permissions?(['chat.agent'])
+
+    session = KakaoConsultationSession.find_by(session_id: params[:id])
+    unless session
+      return render json: { error: 'Session not found' }, status: :not_found
+    end
+    
+    unless params[:file].present?
+      return render json: { error: 'No file provided' }, status: :bad_request
+    end
+
+    begin
+      uploaded_file = params[:file]
+      
+      # 파일 검증
+      validation_result = validate_uploaded_file(uploaded_file)
+      unless validation_result[:valid]
+        return render json: { error: validation_result[:error] }, status: :bad_request
+      end
+
+      # 파일 저장
+      chat_file = save_uploaded_file(uploaded_file, session, current_user)
+      
+      # 메시지 생성 (파일 첨부 메시지)
+      message = session.kakao_consultation_messages.create!(
+        content: "파일이 업로드되었습니다: #{chat_file.filename}",
+        sender_type: 'agent',
+        sender_name: current_user.fullname,
+        message_type: 'file',
+        has_attachments: true,
+        attachment_count: 1
+      )
+
+      # 파일과 메시지 연결
+      chat_file.update!(message: message)
+
+      # WebSocket으로 실시간 알림
+      broadcast_new_message(session, message, [chat_file])
+
+      render json: {
+        success: true,
+        file: file_response_data(chat_file),
+        message: message_response_data(message, [chat_file])
+      }
+
+    rescue => e
+      Rails.logger.error "File upload error: #{e.message}"
+      render json: { error: 'File upload failed' }, status: :internal_server_error
+    end
+  end  
+
+  # 파일 업로드 API (토큰 인증)
+  def upload_file_api
+    return render json: { error: 'API token authentication required' }, status: :unauthorized unless verify_zammad_api_token
+
+    # 디버깅을 위한 파라미터 로그
+    Rails.logger.info "Upload file API - All params: #{params.inspect}"
+    Rails.logger.info "Upload file API - File param: #{params[:file].inspect}"
+    Rails.logger.info "Upload file API - File params keys: #{params.keys.select { |k| params[k].is_a?(ActionDispatch::Http::UploadedFile) }}"
+
+    unless params[:session_id].present?
+      return render json: { error: 'session_id is required' }, status: :bad_request
+    end
+
+    session = KakaoConsultationSession.find_by(session_id: params[:session_id])
+    unless session
+      return render json: { error: 'Session not found' }, status: :not_found
+    end
+
+    # 파일 파라미터 찾기 (file 파라미터가 없으면 UploadedFile 타입인 다른 파라미터 찾기)
+    uploaded_file = params[:file]
+    if uploaded_file.blank?
+      # file 파라미터가 없으면 UploadedFile 타입인 첫 번째 파라미터 사용
+      file_param_key = params.keys.find { |k| params[k].is_a?(ActionDispatch::Http::UploadedFile) }
+      uploaded_file = params[file_param_key] if file_param_key
+      Rails.logger.info "Upload file API - Using file from parameter: #{file_param_key}" if file_param_key
+    end
+
+    unless uploaded_file.present?
+      return render json: { error: 'No file provided', debug_info: { available_params: params.keys, file_params: params.keys.select { |k| params[k].is_a?(ActionDispatch::Http::UploadedFile) } } }, status: :bad_request
+    end
+
+    begin
+      # 파일 검증
+      validation_result = validate_uploaded_file(uploaded_file)
+      unless validation_result[:valid]
+        return render json: { error: validation_result[:error] }, status: :bad_request
+      end
+
+      # 파일 저장 (시스템 사용자로)
+      system_user = User.find_by(login: 'system') || User.first
+      chat_file = save_uploaded_file(uploaded_file, session, system_user)
+      
+      # 메시지 생성
+      sender_name = params[:sender_name] || 'System'
+      message = session.kakao_consultation_messages.create!(
+        content: "파일이 업로드되었습니다: #{chat_file.filename}",
+        sender_type: 'system',
+        sender_name: sender_name,
+        message_type: 'file',
+        has_attachments: true,
+        attachment_count: 1
+      )
+
+      # 파일과 메시지 연결
+      chat_file.update!(message: message)
+
+      # WebSocket으로 실시간 알림
+      broadcast_new_message(session, message, [chat_file])
+
+      render json: {
+        success: true,
+        file: file_response_data(chat_file),
+        message: message_response_data(message, [chat_file])
+      }
+
+    rescue => e
+      Rails.logger.error "File upload API error: #{e.message}"
+      render json: { error: 'File upload failed' }, status: :internal_server_error
+    end
+  end
+
+  # 파일 다운로드
+  def download_file
+    chat_file = KakaoChatFile.find(params[:file_id])
+    
+    unless chat_file.exists?
+      return render json: { error: 'File not found' }, status: :not_found
+    end
+
+    # 권한 확인 (세션에 접근 권한이 있는지)
+    unless can_access_session?(chat_file.session)
+      return render json: { error: 'Access denied' }, status: :forbidden
+    end
+
+    send_file chat_file.full_storage_path,
+              filename: chat_file.original_filename,
+              type: chat_file.content_type,
+              disposition: 'attachment'
+  end
+
+  # 파일 썸네일
+  def file_thumbnail
+    chat_file = KakaoChatFile.find(params[:file_id])
+    
+    unless chat_file.image?
+      return render json: { error: 'Thumbnail not available' }, status: :bad_request
+    end
+
+    # 권한 확인
+    unless can_access_session?(chat_file.session)
+      return render json: { error: 'Access denied' }, status: :forbidden
+    end
+
+    thumbnail_data = chat_file.generate_thumbnail
+    
+    if thumbnail_data
+      send_data thumbnail_data,
+                type: 'image/jpeg',
+                disposition: 'inline'
+    else
+      render json: { error: 'Thumbnail generation failed' }, status: :internal_server_error
+    end
+  end  
+
   private
 
   def verify_api_authentication
@@ -1181,5 +1360,164 @@ class KakaoChatController < ApplicationController
 
   def calculate_total_unread_count
     KakaoConsultationSession.where(status: ['waiting', 'active']).sum(:unread_count)
+  end
+
+  def validate_uploaded_file(uploaded_file)
+    # 파일 크기 검증
+    if uploaded_file.size > KakaoChatFile::MAX_FILE_SIZE
+      return { valid: false, error: "File size too large. Maximum: #{ActionController::Base.helpers.number_to_human_size(KakaoChatFile::MAX_FILE_SIZE)}" }
+    end
+
+    # 파일 확장자 검증
+    extension = File.extname(uploaded_file.original_filename).downcase.delete('.')
+    unless KakaoChatFile::ALLOWED_EXTENSIONS.include?(extension)
+      return { valid: false, error: "File type not allowed. Allowed: #{KakaoChatFile::ALLOWED_EXTENSIONS.join(', ')}" }
+    end
+
+    # MIME 타입 검증
+    detected_type = Marcel::MimeType.for(uploaded_file.tempfile)
+    allowed_types = KakaoChatFile::CONTENT_TYPE_CATEGORIES.values.flatten
+    
+    unless allowed_types.include?(detected_type)
+      return { valid: false, error: "Invalid file type detected: #{detected_type}" }
+    end
+
+    { valid: true }
+  end
+
+  def save_uploaded_file(uploaded_file, session, user)
+    # 파일 해시 생성
+    file_hash = Digest::SHA256.hexdigest(uploaded_file.read)
+    uploaded_file.rewind
+
+    # 저장 경로 생성
+    timestamp = Time.current.strftime('%Y%m%d')
+    filename = sanitize_filename(uploaded_file.original_filename)
+    storage_path = File.join(timestamp, session.session_id, "#{SecureRandom.hex(8)}_#{filename}")
+    
+    # 실제 파일 저장
+    full_path = Rails.root.join('storage', 'kakao_chat', storage_path)
+    FileUtils.mkdir_p(File.dirname(full_path))
+    
+    File.open(full_path, 'wb') do |file|
+      file.write(uploaded_file.read)
+    end
+
+    # 메타데이터 추출
+    metadata = extract_file_metadata(full_path, uploaded_file.content_type)
+
+    # 데이터베이스에 저장
+    KakaoChatFile.create!(
+      filename: filename,
+      original_filename: uploaded_file.original_filename,
+      content_type: uploaded_file.content_type,
+      file_size: uploaded_file.size,
+      storage_path: storage_path,
+      file_hash: file_hash,
+      session: session,
+      uploaded_by: user,
+      metadata: metadata
+    )
+  end
+
+  def extract_file_metadata(file_path, content_type)
+    metadata = {}
+    
+    begin
+      if content_type.start_with?('image/')
+        # MiniMagick이 설치되어 있는 경우에만 이미지 메타데이터 추출
+        begin
+          require 'mini_magick'
+          image = MiniMagick::Image.open(file_path)
+          metadata[:width] = image.width
+          metadata[:height] = image.height
+          metadata[:format] = image.type
+        rescue LoadError
+          Rails.logger.warn "MiniMagick not available - skipping image metadata extraction"
+        rescue => e
+          Rails.logger.warn "Failed to extract image metadata: #{e.message}"
+        end
+      elsif content_type.start_with?('video/')
+        # 동영상 메타데이터는 ffmpeg가 필요 (선택사항)
+        # require 'streamio-ffmpeg'
+        # movie = FFMPEG::Movie.new(file_path)
+        # metadata[:duration] = movie.duration
+        # metadata[:bitrate] = movie.bitrate
+        # metadata[:resolution] = "#{movie.width}x#{movie.height}"
+      end
+    rescue => e
+      Rails.logger.warn "Failed to extract metadata for file: #{e.message}"
+    end
+    
+    metadata
+  end
+
+  def sanitize_filename(filename)
+    # 파일명에서 위험한 문자 제거
+    filename.gsub(/[^0-9A-Za-z.\-_\u{AC00}-\u{D7A3}]/, '_')
+  end
+
+  def can_access_session?(session)
+    # 토큰 인증인 경우 허용
+    return true if @token_auth
+
+    # 로그인한 상담원인 경우 허용
+    return false unless current_user
+    return false unless current_user.permissions?(['chat.agent'])
+    
+    true
+  end
+
+  def file_response_data(chat_file)
+    {
+      id: chat_file.id,
+      filename: chat_file.filename,
+      original_filename: chat_file.original_filename,
+      content_type: chat_file.content_type,
+      file_size: chat_file.file_size,
+      file_size_human: chat_file.file_size_human,
+      file_category: chat_file.file_category,
+      download_url: chat_file.download_url,
+      thumbnail_url: chat_file.thumbnail_url,
+      metadata: chat_file.metadata,
+      created_at: chat_file.created_at
+    }
+  end
+
+  def message_response_data(message, files = [])
+    {
+      id: message.id,
+      content: message.content,
+      sender_type: message.sender_type,
+      sender_name: message.sender_name,
+      message_type: message.message_type,
+      has_attachments: message.has_attachments,
+      attachment_count: message.attachment_count,
+      files: files.map { |file| file_response_data(file) },
+      sent_at: message.created_at
+    }
+  end
+
+  def broadcast_new_message(session, message, files = [])
+    # 메시지 브로드캐스트 데이터
+    message_data = message_response_data(message, files)
+    
+    # WebSocket 이벤트 발송
+    notification_data = {
+      event: 'kakao_message_received',
+      data: {
+        session_id: session.session_id,
+        message: message_data,
+        session: {
+          id: session.id,
+          session_id: session.session_id,
+          status: session.status,
+          unread_count: session.unread_count
+        }
+      }
+    }
+
+    Sessions.broadcast(notification_data)
+    Rails.logger.info "Broadcasted file message for session #{session.session_id}"
   end
 end
