@@ -239,22 +239,14 @@ class KakaoChatSession extends App.ControllerSubContent
     if file.file_category is 'image'
       # 이미지 파일은 썸네일 표시
       """
-      <div class="file-item image-file" style="margin: 2px 0; padding: 4px; border: 1px solid #ddd; border-radius: 3px; background: #f9f9f9;">
-        <div class="file-thumbnail" style="text-align: center;">
-          <img src="#{file.thumbnail_url}" alt="#{file.filename}" 
-               style="max-width: 150px; max-height: 150px; cursor: pointer; border-radius: 2px;" 
-               class="js-image-preview" data-file-id="#{file.id}" data-download-url="#{file.download_url}">
-        </div>
-        <div class="file-info" style="font-size: 10px; margin-top: 2px; text-align: center;">
-          <div class="file-name" style="font-weight: bold;">#{App.Utils.htmlEscape(file.filename)}</div>
-          <div class="file-size" style="color: #666;">#{file.file_size_human}</div>
-        </div>
-      </div>
+      <img src="#{file.thumbnail_url}" alt="#{file.filename}" 
+        style="max-width: 150px; max-height: 150px; border: 1px solid #ddd; cursor: pointer; border-radius: 2px;" 
+        class="js-image-preview" data-file-id="#{file.id}" data-download-url="#{file.download_url}">
       """
     else if file.file_category is 'video'
       # 동영상 파일
       """
-      <div class="file-item video-file" style="margin: 2px 0; padding: 4px; border: 1px solid #ddd; border-radius: 3px; background: #f9f9f9;">
+      <div class="file-item video-file" style="margin: 2px 0; padding: 4px; border: 1px solid #ddd; border-radius: 3px;">
         <div class="file-header" style="display: flex; align-items: center;">
           <span class="file-icon" style="font-size: 16px; margin-right: 4px;">#{fileIcon}</span>
           <div class="file-details" style="flex: 1;">
@@ -273,7 +265,7 @@ class KakaoChatSession extends App.ControllerSubContent
     else
       # 기타 파일 (문서, 아카이브 등)
       """
-      <div class="file-item document-file" style="margin: 2px 0; padding: 4px; border: 1px solid #ddd; border-radius: 3px; background: #f9f9f9;">
+      <div class="file-item document-file" style="margin: 2px 0; padding: 4px; border: 1px solid #ddd; border-radius: 3px;">
         <div class="file-header" style="display: flex; align-items: center;">
           <span class="file-icon" style="font-size: 16px; margin-right: 4px;">#{fileIcon}</span>
           <div class="file-details" style="flex: 1;">
