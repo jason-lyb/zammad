@@ -320,22 +320,24 @@ class KakaoChat extends App.Controller
       console.log 'KakaoChat received kakao_message_received event:', data
       console.log 'Current active view:', KakaoChat.getActiveView()
       
-      # 현재 채팅 목록 화면에 있고, 세션 상세 화면이 아닐 때만 처리
+      # 현재 채팅 목록 화면에 있을 때만 사운드 재생
       currentRoute = window.location.hash
       isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
       
-      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list' and not isInSessionDetail
-        console.log 'Processing message event in chat list view'
+      if @isActive
+        # 채팅 목록 화면에 있을 때만 사운드 재생
+        if KakaoChat.getActiveView() is 'kakao_chat_list' and not isInSessionDetail
+          console.log 'Processing message event in chat list view - playing sound'
+          @playNotificationSound()
         
-        # 새 메시지 수신 시 사운드 재생
-        @playNotificationSound()
-        
+        # 채팅 목록은 항상 새로고침 (세션 상세 화면에 있어도)
+        console.log 'Refreshing chat list due to new message'
         delay = =>
           @loadSessions()
           @updateNavMenu()
         @delay(delay, 1000, 'kakao_refresh')
       else
-        console.log 'Ignoring message event - not in chat list view or in session detail'
+        console.log 'Ignoring message event - KakaoChat not active'
     )
     
     # 메시지 읽음 상태 업데이트
@@ -343,18 +345,15 @@ class KakaoChat extends App.Controller
       console.log 'KakaoChat received kakao_messages_read event:', data
       console.log 'Current active view:', KakaoChat.getActiveView()
       
-      # 현재 채팅 목록 화면에 있고, 세션 상세 화면이 아닐 때만 처리
-      currentRoute = window.location.hash
-      isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
-      
-      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list' and not isInSessionDetail
-        console.log 'Processing messages read event in chat list view'
+      # 채팅 목록은 항상 새로고침 (세션 상세 화면에 있어도)
+      if @isActive
+        console.log 'Refreshing chat list due to messages read'
         delay = =>
           @loadSessions()
           @updateNavMenu()
         @delay(delay, 500, 'kakao_read_refresh')
       else
-        console.log 'Ignoring messages read event - not in chat list view or in session detail'
+        console.log 'Ignoring messages read event - KakaoChat not active'
     )
     
     # 상담원 할당 알림
@@ -362,18 +361,15 @@ class KakaoChat extends App.Controller
       console.log 'KakaoChat received kakao_agent_assigned event:', data
       console.log 'Current active view:', KakaoChat.getActiveView()
       
-      # 현재 채팅 목록 화면에 있고, 세션 상세 화면이 아닐 때만 처리
-      currentRoute = window.location.hash
-      isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
-      
-      if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list' and not isInSessionDetail
-        console.log 'Processing agent assigned event in chat list view'
+      # 채팅 목록은 항상 새로고침 (세션 상세 화면에 있어도)
+      if @isActive
+        console.log 'Refreshing chat list due to agent assignment'
         delay = =>
           @loadSessions()
           @updateNavMenu()
         @delay(delay, 500, 'kakao_assignment_refresh')
       else
-        console.log 'Ignoring agent assigned event - not in chat list view or in session detail'
+        console.log 'Ignoring agent assigned event - KakaoChat not active'
     )
     
     # 카운터 업데이트 이벤트도 처리
