@@ -47,6 +47,7 @@ class KakaoChatSession extends App.ControllerSubContent
     @loadingMessages = false
     @sendingMessage = false
     @loadingSession = false
+    @selectedFiles = []  # 선택된 파일들을 별도로 관리
     
     # 전역 activeView를 세션 상세로 설정 (읽음 처리를 위해)
     @setNavigationHighlight('kakao_chat_session')
@@ -669,6 +670,7 @@ class KakaoChatSession extends App.ControllerSubContent
         alert("파일 '#{file.name}': #{validation.error}")
     
     if validFiles.length > 0
+      @selectedFiles = validFiles  # 선택된 파일들을 인스턴스 변수에 저장
       @showFilePreview(validFiles)
 
   # 클립보드 붙여넣기 처리
@@ -680,9 +682,27 @@ class KakaoChatSession extends App.ControllerSubContent
       if item.type.indexOf('image') is 0
         file = item.getAsFile()
         if file
-          files.push(file)
+          # 클립보드 이미지에 파일명이 없는 경우 자동 생성
+          if not file.name or file.name is 'image.png'
+            timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+            extension = switch item.type
+              when 'image/png' then 'png'
+              when 'image/jpeg' then 'jpg'
+              when 'image/gif' then 'gif'
+              when 'image/webp' then 'webp'
+              else 'png'
+            
+            # File 객체를 새로 생성하여 파일명 설정
+            newFile = new File([file], "clipboard-image-#{timestamp}.#{extension}", {
+              type: file.type
+              lastModified: file.lastModified
+            })
+            files.push(newFile)
+          else
+            files.push(file)
     
     if files.length > 0
+      console.log 'Pasted images:', files.map((f) -> f.name)
       @handleFileSelection(files)
 
   # 파일 검증
@@ -756,12 +776,17 @@ class KakaoChatSession extends App.ControllerSubContent
     index = button.data('index')
     button.closest('.file-preview-item').remove()
     
+    # selectedFiles에서도 해당 파일 제거
+    if @selectedFiles and index >= 0 and index < @selectedFiles.length
+      @selectedFiles.splice(index, 1)
+    
     # 남은 파일 개수 확인
     remaining = @el.find('.file-preview-item').length
     if remaining is 0
       @el.find('.js-file-preview').hide()
       @el.find('.js-send-message').text('전송')
       @el.find('.js-file-input').val('')  # 파일 입력 초기화
+      @selectedFiles = []  # 선택된 파일 목록 초기화
     else
       @el.find('.js-send-message').text("파일 전송 (#{remaining}개)")
 
@@ -843,10 +868,16 @@ class KakaoChatSession extends App.ControllerSubContent
 
   # 선택된 파일들 가져오기
   getSelectedFiles: =>
-    fileInput = @el.find('.js-file-input')[0]
-    return [] unless fileInput?.files?.length > 0
+    # 먼저 인스턴스 변수에 저장된 파일들 확인 (클립보드, 드래그앤드롭)
+    if @selectedFiles?.length > 0
+      return @selectedFiles
     
-    Array.from(fileInput.files)
+    # 파일 input에서 선택된 파일들 확인
+    fileInput = @el.find('.js-file-input')[0]
+    if fileInput?.files?.length > 0
+      return Array.from(fileInput.files)
+    
+    return []
 
   # 텍스트 메시지 전송
   sendTextMessage: (content) =>
@@ -907,6 +938,9 @@ class KakaoChatSession extends App.ControllerSubContent
         @el.find('.js-file-input').val('')
         @el.find('.js-file-preview').hide().empty()
         @el.find('.js-send-message').text('전송')
+        
+        # 선택된 파일 목록 초기화
+        @selectedFiles = []
         
         # WebSocket 이벤트가 새 메시지를 자동으로 추가함
       error: (xhr, status, error) =>
