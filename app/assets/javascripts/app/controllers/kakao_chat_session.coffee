@@ -48,8 +48,8 @@ class KakaoChatSession extends App.ControllerSubContent
     @sendingMessage = false
     @loadingSession = false
     
-    # 네비게이션 하이라이트는 kakao_chat_list로 유지
-    @setNavigationHighlight('kakao_chat_list')
+    # 전역 activeView를 세션 상세로 설정 (읽음 처리를 위해)
+    @setNavigationHighlight('kakao_chat_session')
     
     # activeView 유지를 위한 주기적 확인 제거 (불필요한 중복 호출 방지)
     # @startActiveViewMonitor()
@@ -128,7 +128,10 @@ class KakaoChatSession extends App.ControllerSubContent
               console.log 'Found new messages:', addedMessages.length
               @messages = newMessages
               @addNewMessagesToDOM(addedMessages)
-              @markMessagesAsRead()
+              # 실시간 업데이트에서는 읽음 처리를 하지 않음 (세션 상세 화면에서만)
+              globalActiveView = KakaoChatSession.getActiveView()
+              if not isRealTimeUpdate and @internalView is 'kakao_chat_session' and globalActiveView isnt 'kakao_chat_list'
+                @markMessagesAsRead()
             else
               console.log 'No new messages found'
             return
@@ -138,7 +141,10 @@ class KakaoChatSession extends App.ControllerSubContent
           @messages = newMessages
           if not skipRender
             @render()
-            @markMessagesAsRead()
+            # 세션 상세 화면에서만 읽음 처리 - 전역 activeView도 확인
+            globalActiveView = KakaoChatSession.getActiveView()
+            if @internalView is 'kakao_chat_session' and globalActiveView isnt 'kakao_chat_list'
+              @markMessagesAsRead()
             
         catch error
           console.error 'Error processing messages:', error
@@ -411,8 +417,10 @@ class KakaoChatSession extends App.ControllerSubContent
     # 메시지 목록을 맨 아래로 스크롤
     @smoothScrollToBottom()
     
-    # 초기 렌더링 완료 후 읽음 처리
-    @markMessagesAsRead()
+    # 세션 상세 화면에서만 읽음 처리 - 전역 activeView도 확인
+    globalActiveView = KakaoChatSession.getActiveView()
+    if @internalView is 'kakao_chat_session' and globalActiveView isnt 'kakao_chat_list'
+      @markMessagesAsRead()
 
   # 기존 scrollToBottom 메서드 (즉시 스크롤)
   scrollToBottom: =>
@@ -509,7 +517,7 @@ class KakaoChatSession extends App.ControllerSubContent
       # 명시적으로 상세화면 정리
       @isActive = false
       @internalView = null
-      @setNavigationHighlight(null)
+      @setNavigationHighlight('kakao_chat_list')  # 목록으로 돌아갈 때 전역 activeView 변경
       @navigate('#kakao_chat')
     )
     
@@ -944,10 +952,15 @@ class KakaoChatSession extends App.ControllerSubContent
         # 새 메시지만 추가하는 방식으로 로드
         @loadMessages(false, true)
         
-        # 현재 세션 상세 화면에 있으므로 자동으로 읽음 처리
-        console.log 'Auto-marking messages as read (user viewing session detail)'
-        console.log 'Before markMessagesAsRead - isActive:', @isActive, 'internalView:', @internalView, 'sessionId:', @sessionId
-        @markMessagesAsRead()
+        # 현재 세션 상세 화면에서만 자동으로 읽음 처리 - 전역 activeView도 확인
+        globalActiveView = KakaoChatSession.getActiveView()
+        if @isActive and @internalView is 'kakao_chat_session' and @sessionId is eventSessionId and globalActiveView isnt 'kakao_chat_list'
+          console.log 'Auto-marking messages as read (user viewing session detail)'
+          console.log 'Before markMessagesAsRead - isActive:', @isActive, 'internalView:', @internalView, 'sessionId:', @sessionId, 'globalActiveView:', globalActiveView
+          @markMessagesAsRead()
+        else
+          console.log 'Skipping auto-read marking - not in session detail view or not active'
+          console.log 'Conditions: isActive=', @isActive, 'internalView=', @internalView, 'sessionMatch=', (@sessionId is eventSessionId), 'globalActiveView=', globalActiveView
       else
         console.log 'Session ID does not match, ignoring event'
     )
@@ -965,15 +978,16 @@ class KakaoChatSession extends App.ControllerSubContent
       eventSessionId = data.session_id || data.data?.session_id
       console.log 'Extracted session ID:', eventSessionId, 'vs current session:', @sessionId
       
-      # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리
-      if @isActive and eventSessionId is @sessionId
+      # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리 - 전역 activeView도 확인
+      globalActiveView = KakaoChatSession.getActiveView()
+      if @isActive and eventSessionId is @sessionId and globalActiveView isnt 'kakao_chat_list'
         console.log 'Processing messages read event in session detail view'
         console.log 'Messages marked as read by:', data.read_by_agent || data.data?.read_by_agent
         # 필요시 UI 업데이트 (예: 읽음 표시)
         @updateReadStatus(data.data || data)
       else
         console.log 'Ignoring messages read event - not in session detail view or different session'
-        console.log 'Conditions: isActive=', @isActive, 'sessionMatch=', (eventSessionId is @sessionId)
+        console.log 'Conditions: isActive=', @isActive, 'sessionMatch=', (eventSessionId is @sessionId), 'globalActiveView=', globalActiveView
     )
     
     # 상담원 할당 알림
@@ -982,8 +996,9 @@ class KakaoChatSession extends App.ControllerSubContent
       console.log 'Current active view:', KakaoChatSession.getActiveView()
       console.log 'Session isActive:', @isActive
       
-      # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리
-      if @isActive and data.data?.session_id is @sessionId
+      # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리 - 전역 activeView도 확인
+      globalActiveView = KakaoChatSession.getActiveView()
+      if @isActive and data.data?.session_id is @sessionId and globalActiveView isnt 'kakao_chat_list'
         console.log 'Processing agent assigned event in session detail view'
         console.log 'Agent assigned to session:', data.data.agent_name
         
@@ -1012,7 +1027,7 @@ class KakaoChatSession extends App.ControllerSubContent
     console.log 'KakaoChatSession release called for session:', @sessionId
     @isActive = false
     @internalView = null
-    @setNavigationHighlight(null)
+    @setNavigationHighlight('kakao_chat_list')  # 목록으로 되돌리기
     
     # 모든 delay 취소
     @clearDelay('mark_messages_read')
@@ -1048,7 +1063,7 @@ class KakaoChatSession extends App.ControllerSubContent
   @getActiveView: =>
     window.App?.activeKakaoView || null
 
-  # 메시지 읽음 처리 (디바운스)
+  # 메시지 읽음 처리 (디바운스) - 전역 activeView도 확인
   markMessagesAsRead: =>
     console.log 'markMessagesAsRead called - sessionId:', @sessionId, 'isActive:', @isActive, 'internalView:', @internalView
     
@@ -1063,15 +1078,22 @@ class KakaoChatSession extends App.ControllerSubContent
     if @internalView isnt 'kakao_chat_session'
       console.log 'markMessagesAsRead skipped - not in session detail view, current internalView:', @internalView
       return
+      
+    # 전역 activeView가 목록 화면이면 읽음 처리하지 않음
+    globalActiveView = KakaoChatSession.getActiveView()
+    if globalActiveView is 'kakao_chat_list'
+      console.log 'markMessagesAsRead skipped - global activeView is chat list:', globalActiveView
+      return
     
     console.log 'markMessagesAsRead proceeding for session:', @sessionId
     
     # 디바운스: 500ms 내에 여러 호출이 있으면 마지막 것만 실행
     @delay(=>
-      # 실행 시점에 다시 한번 확인 - internalView로 확인
-      if not @isActive or @internalView isnt 'kakao_chat_session'
+      # 실행 시점에 다시 한번 확인 - internalView와 전역 activeView 모두 확인
+      globalActiveView = KakaoChatSession.getActiveView()
+      if not @isActive or @internalView isnt 'kakao_chat_session' or globalActiveView is 'kakao_chat_list'
         console.log 'Canceling mark as read - view changed during delay or not in session detail'
-        console.log 'Current state: isActive=', @isActive, 'internalView=', @internalView
+        console.log 'Current state: isActive=', @isActive, 'internalView=', @internalView, 'globalActiveView=', globalActiveView
         return
         
       console.log 'Executing delayed mark messages as read for session:', @sessionId
