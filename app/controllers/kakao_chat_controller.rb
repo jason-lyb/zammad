@@ -737,6 +737,13 @@ class KakaoChatController < ApplicationController
       # 파일과 메시지 연결
       chat_file.update!(message: message)
 
+      # 세션 테이블 업데이트 (기존 컬럼 사용)
+      session.update!(
+        last_message_at: Time.current,
+        last_message_content: message.content.present? ? message.content : "[파일]",
+        last_message_sender: message.sender_type
+      )
+
       # WebSocket으로 실시간 알림
       broadcast_new_message(session, message, [chat_file])
 
@@ -790,16 +797,33 @@ class KakaoChatController < ApplicationController
         return render json: { error: validation_result[:error] }, status: :bad_request
       end
 
-      # 파일 저장 (시스템 사용자로)
-      system_user = User.find_by(login: 'system') || User.first
-      chat_file = save_uploaded_file(uploaded_file, session, system_user)
+      # 발송자 타입 및 사용자 설정
+      sender_type = params[:sender_type] || 'system'  # customer, agent, system 중 하나
+      
+      # 발송자에 따른 사용자 및 이름 설정
+      case sender_type
+      when 'customer'
+        sender_user = nil  # 고객은 시스템 사용자 없음
+        sender_name = params[:sender_name] || session.customer_name || '고객'
+      when 'agent'
+        # 상담원의 경우 현재 로그인한 사용자 또는 지정된 사용자
+        sender_user = params[:agent_id].present? ? User.find_by(id: params[:agent_id]) : (current_user || User.find_by(login: 'system'))
+        sender_name = params[:sender_name] || sender_user&.fullname || '상담원'
+      else  # system
+        sender_user = User.find_by(login: 'system') || User.first
+        sender_name = params[:sender_name] || 'System'
+      end
+      
+      # 파일 저장
+      save_user = sender_user || User.find_by(login: 'system') || User.first
+      chat_file = save_uploaded_file(uploaded_file, session, save_user)
       
       # 메시지 생성
-      sender_name = params[:sender_name] || 'System'
       message = session.kakao_consultation_messages.create!(
-        content: "",
-        sender_type: 'system',
+        content: params[:content] || "",
+        sender_type: sender_type,
         sender_name: sender_name,
+        sender_id: sender_user&.id,
         has_attachments: true,
         attachment_count: 1,
         preferences: {
@@ -810,6 +834,18 @@ class KakaoChatController < ApplicationController
 
       # 파일과 메시지 연결
       chat_file.update!(message: message)
+
+      # 세션 테이블 업데이트 (기존 컬럼 사용)
+      session.update!(
+        last_message_at: Time.current,
+        last_message_content: message.content.present? ? message.content : "[파일]",
+        last_message_sender: message.sender_type
+      )
+
+      # 고객 메시지인 경우 읽지 않은 메시지 수 증가
+      if sender_type == 'customer'
+        session.increment!(:unread_count)
+      end
 
       # WebSocket으로 실시간 알림
       broadcast_new_message(session, message, [chat_file])
