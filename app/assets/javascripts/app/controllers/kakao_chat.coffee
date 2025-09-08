@@ -28,6 +28,7 @@ class KakaoChat extends App.Controller
         currentRoute = window.location.hash
         isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
         
+        
         if not isInSessionDetail
           console.log 'KakaoChat menu:render event'
         else
@@ -271,7 +272,6 @@ class KakaoChat extends App.Controller
     
     # 이벤트 바인딩
     @bindEvents()
-
   # 이벤트 바인딩
   bindEvents: =>
     # 세션 행 클릭 시 상세 페이지로 이동
@@ -293,6 +293,14 @@ class KakaoChat extends App.Controller
       e.preventDefault()
       @loadSessions()
     )
+    
+  # 알림 사운드 재생
+  playNotificationSound: =>
+    try
+      console.log 'Playing KakaoTalk notification sound'
+      App.Audio.play('assets/sounds/chat_new.mp3', 0.3)
+    catch error
+      console.log 'Error in playNotificationSound:', error
     
   # 상태 텍스트 변환 - 새로운 상태에 맞게 수정
   getStatusText: (status) ->
@@ -318,6 +326,10 @@ class KakaoChat extends App.Controller
       
       if @isActive and KakaoChat.getActiveView() is 'kakao_chat_list' and not isInSessionDetail
         console.log 'Processing message event in chat list view'
+        
+        # 새 메시지 수신 시 사운드 재생
+        @playNotificationSound()
+        
         delay = =>
           @loadSessions()
           @updateNavMenu()

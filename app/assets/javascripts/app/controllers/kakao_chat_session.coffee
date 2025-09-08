@@ -61,6 +61,14 @@ class KakaoChatSession extends App.ControllerSubContent
     @loadAgents()
     # WebSocket 이벤트 바인딩은 constructor에서만 하므로 여기서는 제거
 
+  # 안전한 사운드 재생
+  playNotificationSound: =>
+    try
+      console.log 'Playing KakaoTalk notification sound in session view'
+      App.Audio.play('assets/sounds/chat_new.mp3', 0.3)
+    catch error
+      console.log 'Error in playNotificationSound in session view:', error
+
   # 세션 데이터 로드
   loadSession: =>
     console.log 'Loading session data for:', @sessionId
@@ -977,6 +985,10 @@ class KakaoChatSession extends App.ControllerSubContent
       
       if eventSessionId is @sessionId
         console.log 'Session ID matches! Loading new messages...'
+        
+        # 새 메시지 수신 시 사운드 재생 (자신이 보낸 메시지가 아닌 경우)
+        if not data.self_written
+          @playNotificationSound()
         
         # 세션 정보도 함께 업데이트 (메시지에 포함된 세션 데이터 사용)
         if data.session
