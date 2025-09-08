@@ -26,8 +26,11 @@ class KakaoChatSession extends App.ControllerSubContent
     # menu:render 이벤트 바인딩 - 네비게이션 하이라이트 유지
     @controllerBind('menu:render', =>
       if @isActive and @internalView is 'kakao_chat_session'
-        console.log 'KakaoChatSession menu:render event - navigation highlight already maintained'
-        # setNavigationHighlight 호출 제거 - show()에서 한번만 설정하면 충분
+        console.log 'KakaoChatSession menu:render event - maintaining navigation highlight'
+        # 세션 상세 화면에서는 카카오톡 상담 메뉴 하이라이트 유지
+        @delay(=>
+          @navupdate '#kakao_chat'
+        , 10, 'nav_highlight_maintain')
     )
     
     # 세션 데이터 로드는 show에서만 실행
@@ -51,6 +54,10 @@ class KakaoChatSession extends App.ControllerSubContent
     
     # 전역 activeView를 세션 상세로 설정 (읽음 처리를 위해)
     @setNavigationHighlight('kakao_chat_session')
+    
+    # 네비게이션 하이라이트 설정
+    @title __('카카오톡 상담 세션'), true
+    @navupdate '#kakao_chat'
     
     # activeView 유지를 위한 주기적 확인 제거 (불필요한 중복 호출 방지)
     # @startActiveViewMonitor()
