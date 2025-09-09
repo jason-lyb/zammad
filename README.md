@@ -298,7 +298,6 @@
       "user_key": "kakao_user_123456780",
       "session_id": "session_abc124",
       "time": "2025-09-01T14:30:00+09:00",
-      "serial_number": "msg_serial_001",
       "content": "콜마너 가입시 업체는 어떻게 신청하나요?",
       "type": "text"
     }

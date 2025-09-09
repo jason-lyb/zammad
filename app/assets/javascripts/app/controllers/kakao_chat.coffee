@@ -279,11 +279,14 @@ class KakaoChat extends App.Controller
       sessionId = $(e.currentTarget).data('session-id')
       console.log 'session click', sessionId   
 
-      # KakaoChatSession 데이터 강제 초기화
-      if window.App?.KakaoChatSession?
-        window.App.KakaoChatSession.session = null
-        window.App.KakaoChatSession.messages = []
-        window.App.KakaoChatSession.agents = []      
+      # 기존 KakaoChatSession 컨트롤러 완전 정리
+      if window.App?.TaskManager?
+        # 기존 세션 태스크들 모두 종료
+        existingTasks = window.App.TaskManager.all()
+        for taskKey, task of existingTasks
+          if taskKey.startsWith('KakaoChatSession-')
+            console.log 'Closing existing session task:', taskKey
+            window.App.TaskManager.remove(taskKey)
 
       @navigate("#kakao_chat/#{sessionId}")
     )
@@ -315,6 +318,10 @@ class KakaoChat extends App.Controller
   bindWebSocketEvents: =>
     console.log 'Binding WebSocket events for KakaoChat'
     
+    @controllerUnbind('kakao_message_received')
+    @controllerUnbind('kakao_messages_read')
+    @controllerUnbind('kakao_agent_assigned')    
+
     # 새 메시지 수신 이벤트
     @controllerBind('kakao_message_received', (data) =>
       console.log 'KakaoChat received kakao_message_received event:', data
