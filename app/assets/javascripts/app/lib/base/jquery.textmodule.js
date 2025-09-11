@@ -282,7 +282,7 @@
     var height         = this.$element.outerHeight() + 2
     var widgetHeight   = this.$widget.find('ul').height() //+ 60 // + height
     var rtl            = document.dir == 'rtl'
-    var top            = -( widgetHeight + height ) + this._position.top
+    var top = -(widgetHeight + height) + this._position.top   
     var start          = this._position.left - 6
     var availableWidth = this.$element.innerWidth()
     var width          = this.$widget.find('.dropdown-menu').width()
@@ -294,6 +294,29 @@
     // position the element further left if it would break out of the textarea width
     if (start + width > availableWidth) {
       start = availableWidth - width
+    }
+
+    // 상단 공간이 부족한 경우 드롭다운 높이 조정
+    var viewportTop = $(window).scrollTop()
+    var elementOffset = this.$element.offset()
+    var absoluteTop = elementOffset.top + top
+    
+    if (absoluteTop < viewportTop) {
+      // 상단 공간이 부족하면 높이를 줄여서 표시
+      var availableHeight = elementOffset.top + this._position.top - viewportTop - 10
+      
+      if (availableHeight > 100) { // 최소 높이 보장
+        this.$widget.find('ul').css({
+          'max-height': availableHeight + 'px',
+          'overflow-y': 'auto'
+        })
+        // 높이 조정 후 위치 재계산
+        widgetHeight = availableHeight
+        top = -(widgetHeight + height) + this._position.top
+      } else {
+        // 공간이 너무 부족하면 하단에 표시
+        top = this._position.top + height
+      }
     }
 
     var css = {
