@@ -649,6 +649,19 @@ class App.TicketCreate extends App.Controller
       ticket: params
     )
 
+    # 고객 선택 후 자동으로 고객 정보 탭 열기
+    if params.customer_id
+      @autoOpenCustomerInfo()
+
+  # 고객 정보 탭 자동 열기 메서드
+  autoOpenCustomerInfo: =>
+    @delay(=>
+      customerTab = @$('.tabsSidebar-tab[data-tab="customer"]')
+      if customerTab.length && !customerTab.hasClass('active')
+        customerTab.trigger('click')
+        @log 'debug', 'Customer info tab automatically opened'
+    , 500)
+
   cancel: (e) ->
     e.preventDefault()
 
