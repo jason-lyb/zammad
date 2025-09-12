@@ -259,6 +259,23 @@
         }
     - db 마이그레이션
       - **docker exec zammad-railsserver bundle exec rails db:migrate**
+    - DB 마이그레이션 상태확인
+      - **docker exec zammad-railsserver bundle exec rails db:migrate:status**
+      ``` bash
+      up     20250423083238  Issue5573 increase webhook endpoint limit
+      up     20250501141812  Issue5567 microsoft graph outbound shared mailbox
+      up     20250812134500  ********** NO FILE **********
+      up     20250813000001  Create kakao consultation sessions
+      up     20250829000001  ********** NO FILE **********
+      up     20250829000002  ********** NO FILE **********
+      up     20250901000013  ********** NO FILE **********
+      up     20250902000001  ********** NO FILE **********
+      up     20250905000001  ********** NO FILE **********
+    - DB 마이그레이션 20250813000001 이전까지 롤백
+      - **docker exec zammad-railsserver bundle exec rails db:migrate:down VERSION=20250813000001**
+
+    - DB 마이그레이션 20250813000001 재설치
+      - **docker exec zammad-railsserver bundle exec rails db:migrate:up VERSION=20250813000001**
 
 - ## 운영 배포
   - 운영서버 : 10.1.4.200

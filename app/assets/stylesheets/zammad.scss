@@ -15253,3 +15253,63 @@ div.accounted-time-value {
     outline-offset: 2px;
   }
 }
+
+// app/assets/stylesheets/zammad.scss에 추가
+.cti-status {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  min-width: 320px;
+  background: hsl(0,0%,100%);
+  border-radius: 8px;
+  box-shadow: 0 8px 17px 0 rgba(0,0,0,.2), 0 6px 20px 0 rgba(0,0,0,.15);
+  z-index: 9999;
+  
+  &.info {
+    border-left: 4px solid hsl(203,88%,53%);
+  }
+  
+  &.error {
+    border-left: 4px solid hsl(18,87%,64%);
+  }
+  
+  &.success {
+    border-left: 4px solid hsl(145,51%,45%);
+  }
+}
+
+.cti-status-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid hsl(0,0%,90%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cti-status-body {
+  padding: 12px 20px 16px;
+  color: hsl(0,0%,45%);
+  font-size: 14px;
+}
+
+.cti-error-details {
+  margin-top: 8px;
+  padding: 8px;
+  background: hsl(18,87%,97%);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.phone-link {
+  color: hsl(203,88%,53%);
+  text-decoration: underline;
+  cursor: pointer;
+  
+  &:hover {
+    color: hsl(203,88%,43%);
+    background-color: hsl(203,88%,95%);
+    padding: 2px 4px;
+    margin: -2px -4px;
+    border-radius: 3px;
+  }
+}
