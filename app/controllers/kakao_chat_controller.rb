@@ -23,6 +23,8 @@ class KakaoChatController < ApplicationController
         session_id: session.session_id,
         customer_name: session.customer_info_data['name'] || '알 수 없음',
         user_key: session.user_key,
+        service_key: session.service_key,
+        event_key: session.event_key,
         status: session.status,
         agent_name: session.agent&.fullname,
         agent_id: session.agent_id,
@@ -81,6 +83,7 @@ class KakaoChatController < ApplicationController
       {
         id: message.id,
         content: message.content,
+        serialNumber: message.serialNumber,
         sender_type: message.sender_type,
         sender_name: message.sender_name,
         message_type: message.message_type,
@@ -398,6 +401,9 @@ class KakaoChatController < ApplicationController
         session_id: session.session_id,
         customer_name: session.customer_info_data['name'] || '알 수 없음',
         customer_info: session.customer_info_data,
+        user_key: session.user_key,
+        service_key: session.service_key,
+        event_key: session.event_key,
         status: session.status,
         agent_name: session.agent&.fullname,
         agent_id: session.agent_id,
@@ -419,6 +425,7 @@ class KakaoChatController < ApplicationController
     # 필수 파라미터 확인
     session_id = params[:session_id]
     content = params[:content]&.strip
+    serialNumber = params[:serialNumber]
     sender_type = params[:sender_type] || 'agent'
     sender_id = params[:sender_id] || params[:agent_id] # agent_id도 지원
     sender_name = params[:sender_name]
@@ -461,6 +468,7 @@ class KakaoChatController < ApplicationController
       # 메시지 생성
       message = session.kakao_consultation_messages.create!(
         content: content,
+        serialNumber: serialNumber,
         sender_type: sender_type,
         sender_id: sender_id,
         sender_name: sender_name || (sender_type == 'system' ? 'System' : '알 수 없음'),
@@ -494,6 +502,7 @@ class KakaoChatController < ApplicationController
         message: {
           id: message.id,
           content: message.content,
+          serialNumber: message.serialNumber,
           sender_type: message.sender_type,
           sender_name: message.sender_name,
           sent_at: message.sent_at,
@@ -502,6 +511,9 @@ class KakaoChatController < ApplicationController
         session: {
           id: session.id,
           session_id: session.session_id,
+          user_key: session.user_key,
+          service_key: session.service_key,
+          event_key: session.event_key,
           status: session.status,
           unread_count: session.unread_count
         }
@@ -633,8 +645,10 @@ class KakaoChatController < ApplicationController
     # 카카오톡 상담톡 API에서 메시지 수신 시 호출되는 엔드포인트
     user_key = params[:user_key]
     session_id = params[:session_id]
+    service_key = params[:service_key]
+    event_key = params[:event_key]
     time = params[:time]
-    serial_number = params[:serial_number]
+    serialNumber = params[:serialNumber]
     content = params[:content]
     contents = params[:contents] # 복합 컨텐츠 (이미지, 파일 등)
     message_type = params[:type]
@@ -655,7 +669,7 @@ class KakaoChatController < ApplicationController
     begin
       ActiveRecord::Base.transaction do
         # 1. 세션 찾기 또는 생성
-        session = find_or_create_session_by_kakao_data(session_id, user_key)
+        session = find_or_create_session_by_kakao_data(session_id, user_key, service_key, event_key)
         
         # 2. 메시지 생성
         message = create_message_from_kakao(session, {
@@ -665,7 +679,7 @@ class KakaoChatController < ApplicationController
           sender_type: sender_type,
           agent_id: agent_id,
           time: time,
-          serial_number: serial_number,
+          serialNumber: serialNumber,
           user_key: user_key
         })
         
@@ -682,7 +696,7 @@ class KakaoChatController < ApplicationController
           status: 'success',
           session_id: session.session_id,
           message_id: message.id,
-          serial_number: serial_number
+          serialNumber: message.serialNumber
         }
       end
     rescue StandardError => e
@@ -1020,7 +1034,7 @@ class KakaoChatController < ApplicationController
   end
 
   # 세션 찾기 또는 생성 (카카오톡 데이터 기반)
-  def find_or_create_session_by_kakao_data(session_id, user_key)
+  def find_or_create_session_by_kakao_data(session_id, user_key, service_key = nil, event_key = nil)
     session = KakaoConsultationSession.find_by(session_id: session_id)
     
     unless session
@@ -1034,6 +1048,8 @@ class KakaoChatController < ApplicationController
       session = KakaoConsultationSession.create!(
         session_id: session_id,
         user_key: user_key,
+        service_key: service_key,
+        event_key: event_key,
         customer_name: customer_info['name'],
         customer_info: customer_info.to_json,
         status: 'waiting',
@@ -1049,7 +1065,15 @@ class KakaoChatController < ApplicationController
         agent_messages: 0
       )
       
-      Rails.logger.info "Created new KakaoTalk session: #{session_id} for user_key: #{user_key}"
+      Rails.logger.info "Created new KakaoTalk session: #{session_id} for user_key: #{user_key}, service_key: #{service_key}, event_key: #{event_key}"
+    else
+      # 기존 세션이 있으면 service_key, event_key 업데이트 (필요한 경우)
+      if service_key.present? && session.service_key != service_key
+        session.update!(service_key: service_key)
+      end
+      if event_key.present? && session.event_key != event_key
+        session.update!(event_key: event_key)
+      end
     end
     
     session
@@ -1063,16 +1087,16 @@ class KakaoChatController < ApplicationController
     sender_type = kakao_data[:sender_type] || 'customer'
     agent_id = kakao_data[:agent_id]
     time_str = kakao_data[:time]
-    serial_number = kakao_data[:serial_number]
+    serialNumber = kakao_data[:serialNumber]
     user_key = kakao_data[:user_key]
     
-    # 중복 메시지 확인 (serial_number 기준)
-    if serial_number.present?
+    # 중복 메시지 확인 (serialNumber 기준)
+    if serialNumber.present?
       existing_message = session.kakao_consultation_messages
-                               .where("preferences LIKE ?", "%\"serial_number\":\"#{serial_number}\"%")
+                               .where(serialNumber: serialNumber)
                                .first
       if existing_message
-        Rails.logger.info "Duplicate message ignored: serial_number=#{serial_number}"
+        Rails.logger.info "Duplicate message ignored: serialNumber=#{serialNumber}"
         return existing_message
       end
     end
@@ -1115,7 +1139,7 @@ class KakaoChatController < ApplicationController
                            {
                              type: message_type,
                              content: contents,
-                             serial_number: serial_number
+                             serialNumber: serialNumber
                            }
                          ]
                        else
@@ -1168,7 +1192,8 @@ class KakaoChatController < ApplicationController
     end
     
     message = session.kakao_consultation_messages.create!(
-      message_id: serial_number, # 카카오톡의 serial_number를 message_id로 사용
+      message_id: serialNumber, # 카카오톡의 serialNumber를 message_id로 사용
+      serialNumber: serialNumber, # serialNumber 컬럼에도 저장
       sender_type: sender_type,
       sender_id: (sender_type == 'agent' && agent_id.present?) ? agent_id : nil,
       sender_name: sender_name,
@@ -1181,7 +1206,7 @@ class KakaoChatController < ApplicationController
         agent_id: agent_id,
         kakao_data: kakao_data,
         user_key: user_key,
-        serial_number: serial_number
+        serialNumber: serialNumber
       }
     )
     

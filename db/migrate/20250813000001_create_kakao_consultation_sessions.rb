@@ -41,6 +41,7 @@ class CreateKakaoConsultationSessions < ActiveRecord::Migration[6.1]
       create_table :kakao_consultation_messages do |t|
         t.references :kakao_consultation_session, null: false, foreign_key: true, index: { name: 'idx_kakao_messages_session_id' }
         t.string :message_id, comment: '상담톡 API 메시지 ID'
+        t.string :serialNumber, comment: '카카오톡 메시지 시리얼 번호'
         t.string :sender_type, null: false, comment: 'customer, agent, system'
         t.integer :sender_id, comment: '발신자 ID (agent인 경우 User ID)'
         t.string :sender_name, comment: '발신자 이름'
@@ -56,6 +57,7 @@ class CreateKakaoConsultationSessions < ActiveRecord::Migration[6.1]
         t.timestamps
         
         t.index :message_id
+        t.index :serialNumber
         t.index :sender_type
         t.index :sender_id
         t.index :sent_at
@@ -128,6 +130,10 @@ class CreateKakaoConsultationSessions < ActiveRecord::Migration[6.1]
 
     # 메시지 테이블에 추가 컬럼들
     if table_exists?(:kakao_consultation_messages)
+      # serialNumber 컬럼 추가
+      add_column :kakao_consultation_messages, :serialNumber, :string unless column_exists?(:kakao_consultation_messages, :serialNumber)
+      add_index :kakao_consultation_messages, [:serialNumber] unless index_exists?(:kakao_consultation_messages, [:serialNumber])
+      
       # 기존 read_by_agent 컬럼은 팀 전체 읽음 상태로 활용
       # (누구든 한 명이라도 읽으면 true)
       add_column :kakao_consultation_messages, :team_read_at, :datetime unless column_exists?(:kakao_consultation_messages, :team_read_at)
