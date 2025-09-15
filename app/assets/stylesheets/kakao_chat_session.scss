@@ -167,6 +167,33 @@
   }
 }
 
+.linked-customer-info {
+  background: var(--background-primary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  .label {
+    margin-right: 8px;
+  }
+  strong {
+    font-weight: 500;
+    color: var(--text-normal);
+  }
+  span {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: 8px;
+  }
+  .btn {
+    margin-left: 16px;
+  }
+}
+
 .message-bubble {
   padding: 8px 10px;
   border-radius: 8px;

@@ -506,17 +506,18 @@ class KakaoChatSession extends App.ControllerSubContent
       # makeSafeCustomer 함수로 안전한 고객 객체 생성
       safeCustomer = @makeSafeCustomer(linkedCustomer)
       
-      if safeCustomer    
+      if safeCustomer
         """
-        <div class="linked-customer-info" style="padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; margin-bottom: 10px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="linked-customer-info">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
             <div>
-              <div style="font-weight: bold; color: #28a745;">✓ 연동된 고객: #{safeCustomer.fullname()}</div>
-              <div style="font-size: 12px; color: #666; margin-top: 2px;">
+              <span class="label label--success" style="margin-right: 8px;">✓ 연동된 고객</span>
+              <strong>#{safeCustomer.fullname()}</strong>
+              <span>
                 #{if safeCustomer.email then '이메일: ' + safeCustomer.email else ''}
                 #{if safeCustomer.email and safeCustomer.phone then ' | ' else ''}
                 #{if safeCustomer.phone then '전화: ' + safeCustomer.phone else ''}
-              </div>
+              </span>
             </div>
             <button class="btn btn--secondary btn--small js-unlink-customer" title="고객 연동 해제">연동 해제</button>
           </div>
@@ -524,7 +525,7 @@ class KakaoChatSession extends App.ControllerSubContent
         """
       else
         """
-        <div class="linked-customer-info" style="padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; margin-bottom: 10px;">
+        <div class="panel panel--warning linked-customer-info" style="margin-bottom: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span class="text-muted">⚠ 연동된 고객을 찾을 수 없습니다. (ID: #{@session.linked_customer_id})</span>
             <button class="btn btn--secondary btn--small js-unlink-customer" title="고객 연동 해제">연동 해제</button>
@@ -532,20 +533,18 @@ class KakaoChatSession extends App.ControllerSubContent
         </div>
         """
     else
-      ''
-    
-    """
-    <div class="customer-linking">
-      <h3>고객 연동</h3>
-      #{linkedCustomerInfo}
-      <div class="customer-search-container">
-        <div class="form-group" style="display: flex; gap: 10px; align-items: flex-end;">
-          <div class="customer-search-input-container" style="flex: 1; min-width: 180px;"></div>
-          <button class="btn btn--primary js-link-customer">고객 연동</button>
+      """
+      <div class="customer-linking">
+        <h3>고객 연동</h3>
+        <div class="customer-search-container">
+          <div class="form-group" style="display: flex; gap: 10px; align-items: flex-end;">
+            <label style="margin-bottom: 0;"></label>
+            <div class="customer-search-input-container" style="flex: 1; min-width: 180px;"></div>
+            <button class="btn btn--primary js-link-customer">고객 연동</button>
+          </div>
         </div>
       </div>
-    </div>
-    """
+      """
 
   # 로딩 화면
   renderLoading: =>
@@ -744,7 +743,7 @@ class KakaoChatSession extends App.ControllerSubContent
     configure_attributes = {
       linked_customer_id: { 
         name: 'linked_customer_id'
-        display: '고객'
+        display: ''
         tag: 'user_autocompletion'
         null: true
         placeholder: '고객 이름, 이메일 또는 조직명을 입력하세요...'
