@@ -502,9 +502,32 @@ class KakaoChatSession extends App.ControllerSubContent
     linkedCustomerInfo = if @session.linked_customer_id
       # 세션에서 연동된 고객 ID로 사용자 찾기
       linkedCustomer = App.User.find(@session.linked_customer_id)
-      
-      # makeSafeCustomer 함수로 안전한 고객 객체 생성
-      safeCustomer = @makeSafeCustomer(linkedCustomer)
+
+      if not linkedCustomer
+        # 캐시에 없는 경우 API로 사용자 정보 가져오기
+        console.log 'Customer not found in cache, fetching from API...'
+        App.Ajax.request(
+          id: 'user_show'
+          type: 'GET'
+          url: "#{App.Config.get('api_path')}/users/#{@session.linked_customer_id}"
+          success: (data) =>
+            # 사용자 데이터를 직접 사용 (캐시 의존성 제거)
+            if data and data.id
+              # API에서 받은 데이터로 사용자 객체 생성
+              safeCustomer = @makeSafeCustomer(data)
+              # 데이터를 Zammad 캐시에도 추가 시도
+              try
+                App.User.refresh(data, { clear: false })
+              catch error
+                console.log 'Warning: Failed to add user to cache:', error
+            else
+              safeCustomer = null
+          error: (xhr, status, error) =>
+            safeCustomer = null
+        )
+      else 
+        # makeSafeCustomer 함수로 안전한 고객 객체 생성
+        safeCustomer = @makeSafeCustomer(linkedCustomer)
       
       if safeCustomer
         """
