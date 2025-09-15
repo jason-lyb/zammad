@@ -9,6 +9,7 @@ class CreateKakaoConsultationSessions < ActiveRecord::Migration[6.1]
       t.string :customer_avatar, comment: '고객 아바타 URL'
       t.string :customer_phone, comment: '고객 전화번호'
       t.text :customer_info, comment: '고객 추가 정보 (JSON)'
+      t.integer :linked_customer_id, comment: '연동된 Zammad 고객 ID'
       
       t.integer :agent_id, comment: '담당 상담원 ID'
       t.string :status, default: 'waiting', comment: '상담 상태: waiting, active, ended, transferred'
@@ -31,6 +32,7 @@ class CreateKakaoConsultationSessions < ActiveRecord::Migration[6.1]
       t.index :user_key
       t.index :service_key
       t.index :event_key
+      t.index :linked_customer_id
       t.index :agent_id
       t.index :status
       t.index :started_at

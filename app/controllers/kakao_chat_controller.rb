@@ -25,6 +25,7 @@ class KakaoChatController < ApplicationController
         user_key: session.user_key,
         service_key: session.service_key,
         event_key: session.event_key,
+        linked_customer_id: session.linked_customer_id,
         status: session.status,
         agent_name: session.agent&.fullname,
         agent_id: session.agent_id,
@@ -404,6 +405,7 @@ class KakaoChatController < ApplicationController
         user_key: session.user_key,
         service_key: session.service_key,
         event_key: session.event_key,
+        linked_customer_id: session.linked_customer_id,
         status: session.status,
         agent_name: session.agent&.fullname,
         agent_id: session.agent_id,
@@ -939,6 +941,132 @@ class KakaoChatController < ApplicationController
     else
       render json: { error: 'Thumbnail generation failed' }, status: :internal_server_error
     end
+  end
+  
+  # 고객 연동
+  def link_customer
+    session = find_session
+    return unless session
+
+    return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
+
+    customer_id = params[:customer_id]
+    return render json: { error: 'Customer ID is required' }, status: :bad_request if customer_id.blank?
+
+    # 고객 존재 확인
+    customer = User.find_by(id: customer_id)
+    return render json: { error: 'Customer not found' }, status: :not_found unless customer
+
+    begin
+      # 세션에 고객 연동
+      session.update!(linked_customer_id: customer_id)
+      
+      # 시스템 메시지 추가
+      session.kakao_consultation_messages.create!(
+        content: "Zammad 고객 '#{customer.fullname}'과 연동되었습니다.",
+        sender_type: 'system',
+        sent_at: Time.current,
+        preferences: {
+          message_type: 'system',
+          customer_linked: true,
+          customer_id: customer_id,
+          customer_name: customer.fullname
+        }
+      )
+      
+      # 고객 연동 알림 브로드캐스트
+      broadcast_customer_linked(session, customer)
+      
+      render json: {
+        status: 'success',
+        session: {
+          id: session.id,
+          session_id: session.session_id,
+          linked_customer_id: session.linked_customer_id
+        },
+        customer: {
+          id: customer.id,
+          name: customer.fullname,
+          email: customer.email,
+          phone: customer.phone
+        }
+      }
+    rescue StandardError => e
+      Rails.logger.error "Failed to link customer: #{e.message}"
+      render json: { error: 'Failed to link customer' }, status: :internal_server_error
+    end
+  end
+
+  # 고객 연동 해제
+  def unlink_customer
+    session = find_session
+    return unless session
+
+    return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
+
+    begin
+      old_customer_id = session.linked_customer_id
+      old_customer = User.find_by(id: old_customer_id) if old_customer_id
+      
+      # 세션에서 고객 연동 해제
+      session.update!(linked_customer_id: nil)
+      
+      # 시스템 메시지 추가
+      if old_customer
+        session.kakao_consultation_messages.create!(
+          content: "Zammad 고객 '#{old_customer.fullname}'과의 연동이 해제되었습니다.",
+          sender_type: 'system',
+          sent_at: Time.current,
+          preferences: {
+            message_type: 'system',
+            customer_unlinked: true,
+            customer_id: old_customer_id,
+            customer_name: old_customer.fullname
+          }
+        )
+      end
+      
+      # 고객 연동 해제 알림 브로드캐스트
+      broadcast_customer_unlinked(session, old_customer)
+      
+      render json: {
+        status: 'success',
+        session: {
+          id: session.id,
+          session_id: session.session_id,
+          linked_customer_id: nil
+        }
+      }
+    rescue StandardError => e
+      Rails.logger.error "Failed to unlink customer: #{e.message}"
+      render json: { error: 'Failed to unlink customer' }, status: :internal_server_error
+    end
+  end
+
+  # 고객 연동 브로드캐스트
+  def broadcast_customer_linked(session, customer)
+    notification_data = {
+      event: 'kakao_customer_linked',
+      data: {
+        session_id: session.session_id,
+        customer_id: customer.id,
+        customer_name: customer.fullname
+      }
+    }
+    Sessions.broadcast(notification_data)
+  end
+
+  # 고객 연동 해제 브로드캐스트
+  def broadcast_customer_unlinked(session, customer)
+    notification_data = {
+      event: 'kakao_customer_unlinked',
+      data: {
+        session_id: session.session_id,
+        old_customer_id: customer&.id,
+        old_customer_name: customer&.fullname
+      }
+    }
+    Sessions.broadcast(notification_data)
   end  
 
   private

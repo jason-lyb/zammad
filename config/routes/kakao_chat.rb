@@ -12,6 +12,8 @@ Zammad::Application.routes.draw do
     post   '/kakao_chat/sessions/:id/assign',         to: 'kakao_chat#assign_agent'
     post   '/kakao_chat/sessions/:id/end',           to: 'kakao_chat#end_session'
     post   '/kakao_chat/sessions/:id/read',          to: 'kakao_chat#mark_messages_as_read'
+    post   '/kakao_chat/sessions/:id/link_customer', to: 'kakao_chat#link_customer'
+    delete '/kakao_chat/sessions/:id/link_customer', to: 'kakao_chat#unlink_customer'
     get    '/kakao_chat/unread_count',               to: 'kakao_chat#unread_count'
     get    '/kakao_chat/agents',                     to: 'kakao_chat#available_agents'
     

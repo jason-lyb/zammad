@@ -51,6 +51,7 @@ class KakaoChatSession extends App.ControllerSubContent
     @sendingMessage = false
     @loadingSession = false
     @selectedFiles = []  # 선택된 파일들을 별도로 관리
+    @selectedCustomer = null  # 선택된 고객 정보
     
     # 전역 activeView를 세션 상세로 설정 (읽음 처리를 위해)
     @setNavigationHighlight('kakao_chat_session')
@@ -412,6 +413,8 @@ class KakaoChatSession extends App.ControllerSubContent
               </div>
             </div>
             
+            #{@renderCustomerLinking()}
+            
             #{if @session.status in ['active', 'waiting'] then @renderAgentAssignment() else ''}
           </div>
           
@@ -429,6 +432,9 @@ class KakaoChatSession extends App.ControllerSubContent
     
     @el.html(html)
     @bindEvents()
+    
+    # 고객 검색 자동완성 초기화
+    @initCustomerSearch()
     
     # 메시지 목록을 맨 아래로 스크롤
     @smoothScrollToBottom()
@@ -486,6 +492,57 @@ class KakaoChatSession extends App.ControllerSubContent
           #{agentOptions}
         </select>
         <button class="btn btn--secondary js-assign-agent">담당자 변경</button>
+      </div>
+    </div>
+    """
+
+  # 고객 연동 UI 렌더링
+  renderCustomerLinking: =>
+    # 현재 연동된 고객 정보 표시
+    linkedCustomerInfo = if @session.linked_customer_id
+      # 세션에서 연동된 고객 ID로 사용자 찾기
+      linkedCustomer = App.User.find(@session.linked_customer_id)
+      
+      # makeSafeCustomer 함수로 안전한 고객 객체 생성
+      safeCustomer = @makeSafeCustomer(linkedCustomer)
+      
+      if safeCustomer    
+        """
+        <div class="linked-customer-info" style="padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: bold; color: #28a745;">✓ 연동된 고객: #{safeCustomer.fullname()}</div>
+              <div style="font-size: 12px; color: #666; margin-top: 2px;">
+                #{if safeCustomer.email then '이메일: ' + safeCustomer.email else ''}
+                #{if safeCustomer.email and safeCustomer.phone then ' | ' else ''}
+                #{if safeCustomer.phone then '전화: ' + safeCustomer.phone else ''}
+              </div>
+            </div>
+            <button class="btn btn--secondary btn--small js-unlink-customer" title="고객 연동 해제">연동 해제</button>
+          </div>
+        </div>
+        """
+      else
+        """
+        <div class="linked-customer-info" style="padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="text-muted">⚠ 연동된 고객을 찾을 수 없습니다. (ID: #{@session.linked_customer_id})</span>
+            <button class="btn btn--secondary btn--small js-unlink-customer" title="고객 연동 해제">연동 해제</button>
+          </div>
+        </div>
+        """
+    else
+      ''
+    
+    """
+    <div class="customer-linking">
+      <h3>고객 연동</h3>
+      #{linkedCustomerInfo}
+      <div class="customer-search-container">
+        <div class="form-group" style="display: flex; gap: 10px; align-items: flex-end;">
+          <div class="customer-search-input-container" style="flex: 1; min-width: 180px;"></div>
+          <button class="btn btn--primary js-link-customer">고객 연동</button>
+        </div>
       </div>
     </div>
     """
@@ -612,6 +669,18 @@ class KakaoChatSession extends App.ControllerSubContent
       e.preventDefault()
       @assignAgent()
     )
+    
+    # 고객 연동
+    @el.on('click.kakao-session', '.js-link-customer', (e) =>
+      e.preventDefault()
+      @linkCustomer()
+    )
+    
+    # 고객 연동 해제
+    @el.on('click.kakao-session', '.js-unlink-customer', (e) =>
+      e.preventDefault()
+      @unlinkCustomer()
+    )
 
   # 기존 scrollToBottom 메서드 (즉시 스크롤)
   scrollToBottom: =>
@@ -661,6 +730,186 @@ class KakaoChatSession extends App.ControllerSubContent
       error: (xhr, status, error) =>
         console.error 'Failed to assign agent:', error
         alert('담당자 변경에 실패했습니다.')
+    )
+
+  # 고객 검색 자동완성 초기화
+  initCustomerSearch: =>
+    customerSearchContainer = @el.find('.customer-search-input-container')
+    return unless customerSearchContainer.length > 0
+    
+    # 기존 내용 초기화
+    customerSearchContainer.empty()
+    
+    # user_autocompletion 설정
+    configure_attributes = {
+      linked_customer_id: { 
+        name: 'linked_customer_id'
+        display: '고객'
+        tag: 'user_autocompletion'
+        null: true
+        placeholder: '고객 이름, 이메일 또는 조직명을 입력하세요...'
+        minLengt: 2
+        disableCreateObject: false
+        class: 'form-control'
+      }
+    }
+    
+    # ControllerForm을 사용하여 자동완성 필드 생성
+    @customerSearchForm = new App.ControllerForm(
+      model: App.User
+      mixedAttributes: configure_attributes
+      screen: 'edit'
+      params: { linked_customer_id: @session.linked_customer_id || '' }
+      el: customerSearchContainer
+      noFieldset: true
+    )
+    
+    # 고객 선택 시 이벤트 바인딩
+    customerSearchContainer.on('change', 'input[name=linked_customer_id]', (e) =>
+      customerId = $(e.target).val()
+      console.log 'Customer selected:', customerId
+      
+      if customerId
+        # user_autocompletion에서는 customerId가 문자열로 올 수 있으므로 숫자로 변환
+        customerIdNumber = parseInt(customerId, 10)
+        customer = App.User.find(customerIdNumber)
+        
+        # makeSafeCustomer 사용
+        safeCustomer = @makeSafeCustomer(customer)
+        
+        if safeCustomer
+          @selectedCustomer = safeCustomer
+          @el.find('.js-link-customer').prop('disabled', false)
+          console.log 'Customer found:', safeCustomer.fullname()
+        else
+          # 캐시에 없는 경우 API로 사용자 정보 가져오기
+          console.log 'Customer not found in cache, fetching from API...'
+          App.Ajax.request(
+            id: 'user_show'
+            type: 'GET'
+            url: "#{App.Config.get('api_path')}/users/#{customerIdNumber}"
+            success: (data) =>
+              # 사용자 데이터를 직접 사용 (캐시 의존성 제거)
+              if data and data.id
+                # API에서 받은 데이터로 사용자 객체 생성
+                @selectedCustomer = @makeSafeCustomer(data)
+                @el.find('.js-link-customer').prop('disabled', false)
+                console.log 'Customer fetched from API:', @selectedCustomer.fullname()
+                
+                # 데이터를 Zammad 캐시에도 추가 시도
+                try
+                  App.User.refresh(data, { clear: false })
+                catch error
+                  console.log 'Warning: Failed to add user to cache:', error
+              else
+                @selectedCustomer = null
+                @el.find('.js-link-customer').prop('disabled', true)
+                console.log 'Invalid customer data received from API'
+            error: (xhr, status, error) =>
+              console.error 'Failed to fetch customer:', error
+              @selectedCustomer = null
+              @el.find('.js-link-customer').prop('disabled', true)
+          )
+      else
+        @selectedCustomer = null
+        @el.find('.js-link-customer').prop('disabled', true)
+        console.log 'No customer selected'
+    )
+
+  # makeSafeCustomer 메서드 추가 (클래스 내부로 이동)
+  makeSafeCustomer: (customer) =>
+    return null unless customer
+    
+    # 이미 fullname 메서드가 있는 경우 그대로 반환
+    if typeof customer.fullname is 'function'
+      return customer
+    
+    # fullname 메서드가 없는 경우 추가
+    customer.fullname = () ->
+      name = ''
+      if customer.firstname and customer.lastname
+        name = "#{customer.firstname} #{customer.lastname}"
+      else if customer.firstname
+        name = customer.firstname
+      else if customer.lastname
+        name = customer.lastname
+      else if customer.login
+        name = customer.login
+      else if customer.email
+        name = customer.email
+      else
+        name = "고객 ID: #{customer.id}"
+      return name
+    
+    return customer
+
+  # linkCustomer 메서드도 수정
+  linkCustomer: =>
+    return unless @selectedCustomer
+    
+    customerId = @selectedCustomer.id
+    
+    # makeSafeCustomer를 사용하여 안전한 고객 이름 추출
+    safeCustomer = @makeSafeCustomer(@selectedCustomer)
+    customerName = if safeCustomer then safeCustomer.fullname() else "고객 ID: #{customerId}"
+    
+    return unless confirm("'#{customerName}' 고객과 이 카카오톡 세션을 연동하시겠습니까?")
+    
+    console.log 'Linking customer with ID:', customerId, 'Name:', customerName
+    console.log 'Session ID:', @sessionId
+    console.log 'API URL will be:', "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/link_customer"
+    
+    App.Ajax.request(
+      id: 'kakao_chat_link_customer'
+      type: 'POST'
+      url: "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/link_customer"
+      data: JSON.stringify(customer_id: customerId)
+      processData: false
+      success: (data) =>
+        console.log 'Customer linked successfully:', data
+        @session.linked_customer_id = customerId
+        
+        # 연동 성공 시 응답에서 받은 고객 정보를 캐시에 저장 시도
+        if data.customer
+          try
+            App.User.refresh(data.customer, { clear: false })
+          catch error
+            console.log 'Warning: Failed to refresh user cache:', error
+        
+        @render()  # 화면 재렌더링
+      error: (xhr, status, error) =>
+        console.error 'Failed to link customer:', error
+        console.error 'XHR status:', status
+        console.error 'XHR status code:', xhr.status
+        console.error 'Response:', xhr.responseText
+        console.error 'API URL was:', "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/link_customer"
+        
+        try
+          response = JSON.parse(xhr.responseText)
+          alert("고객 연동 실패: #{response.error || response.message || error}")
+        catch
+          if xhr.status is 404
+            alert('API 엔드포인트를 찾을 수 없습니다. 서버가 실행 중인지 확인해주세요.')
+          else
+            alert('고객 연동에 실패했습니다.')
+    )      
+
+  # 고객 연동 해제
+  unlinkCustomer: =>
+    return unless confirm('고객 연동을 해제하시겠습니까?')
+    
+    App.Ajax.request(
+      id: 'kakao_chat_unlink_customer'
+      type: 'DELETE'
+      url: "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/link_customer"
+      success: (data) =>
+        console.log 'Customer unlinked successfully:', data
+        @session.linked_customer_id = null
+        @selectedCustomer = null
+        @render()  # 화면 재렌더링
+      error: (xhr, status, error) =>
+        console.error 'Failed to unlink customer:', error
+        alert('고객 연동 해제에 실패했습니다.')
     )
 
   # 파일 선택 처리
@@ -1063,6 +1312,42 @@ class KakaoChatSession extends App.ControllerSubContent
       else
         console.log 'Ignoring agent assigned event - not in session detail view or different session'
     )
+    
+    # 고객 연동 알림
+    @controllerBind('kakao_customer_linked', (data) =>
+      console.log 'KakaoChatSession received kakao_customer_linked:', data
+      console.log 'Current active view:', KakaoChatSession.getActiveView()
+      
+      # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리
+      globalActiveView = KakaoChatSession.getActiveView()
+      if @isActive and data.data?.session_id is @sessionId and globalActiveView isnt 'kakao_chat_list'
+        console.log 'Processing customer linked event in session detail view'
+        console.log 'Customer linked to session:', data.data.customer_name
+        
+        # 세션 정보 업데이트
+        @session.linked_customer_id = data.data.customer_id
+        @render()  # 화면 재렌더링
+      else
+        console.log 'Ignoring customer linked event - not in session detail view or different session'
+    )
+    
+    # 고객 연동 해제 알림
+    @controllerBind('kakao_customer_unlinked', (data) =>
+      console.log 'KakaoChatSession received kakao_customer_unlinked:', data
+      console.log 'Current active view:', KakaoChatSession.getActiveView()
+      
+      # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리
+      globalActiveView = KakaoChatSession.getActiveView()
+      if @isActive and data.data?.session_id is @sessionId and globalActiveView isnt 'kakao_chat_list'
+        console.log 'Processing customer unlinked event in session detail view'
+        console.log 'Customer unlinked from session:', data.data.old_customer_name
+        
+        # 세션 정보 업데이트
+        @session.linked_customer_id = null
+        @render()  # 화면 재렌더링
+      else
+        console.log 'Ignoring customer unlinked event - not in session detail view or different session'
+    )
 
   # 읽음 상태 UI 업데이트
   updateReadStatus: (data) =>
@@ -1099,6 +1384,12 @@ class KakaoChatSession extends App.ControllerSubContent
     @controllerUnbind('kakao_message_received')
     @controllerUnbind('kakao_messages_read')
     @controllerUnbind('kakao_agent_assigned')
+    @controllerUnbind('kakao_customer_linked')
+    @controllerUnbind('kakao_customer_unlinked')
+    
+    # 고객 검색 폼 정리
+    @customerSearchForm = null
+    @selectedCustomer = null
     
     console.log 'KakaoChatSession released, isActive:', @isActive, 'internalView:', @internalView
     super if super
