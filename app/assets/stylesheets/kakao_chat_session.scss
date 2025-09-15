@@ -125,6 +125,8 @@
 /* 메시지 컨테이너 */
 .messages-container {
   margin-top: 20px;
+  max-width: 800px; 
+  width: 100%;
 
   h3 {
     margin-bottom: 12px;
@@ -147,7 +149,7 @@
 }
 
 .message {
-  margin-bottom: 15px;
+  margin-bottom: 8px;
   display: flex;
   clear: both;
 
@@ -155,7 +157,7 @@
     justify-content: flex-start;
     
     .message-bubble {
-      max-width: 70%;
+      max-width: 80%;
       margin-right: auto;
     }
   }
@@ -164,7 +166,7 @@
     justify-content: flex-end;
     
     .message-bubble {
-      max-width: 70%;
+      max-width: 80%;
       margin-left: auto;
     }
   }
@@ -198,10 +200,11 @@
 }
 
 .message-bubble {
-  padding: 8px 10px;
+  padding: 4px 10px;
   border-radius: 8px;
   border-left: 3px solid;
   min-width: 200px;
+  max-width: 85%;               /* 85%까지 사용 가능 */
 
   .message-customer & {
     background: var(--background-highlight);
@@ -227,9 +230,9 @@
   align-items: center;
   margin-bottom: 4px;
 
-  strong {
+  .sender {
     color: var(--text-normal);
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 500;
   }
 
@@ -244,7 +247,7 @@
   line-height: 1.3;
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .no-messages {

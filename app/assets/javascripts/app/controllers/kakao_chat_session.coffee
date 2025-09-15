@@ -227,13 +227,13 @@ class KakaoChatSession extends App.ControllerSubContent
       ''
     
     """
-    <div class="message message-#{senderClass} #{alignmentClass}" style="margin: 1px 0; padding: 1px 2px;">
-      <div class="message-bubble" style="padding: 2px 4px; border-radius: 3px;">
-        <div class="message-header" style="font-size: 11px; opacity: 0.7; margin: 0; padding: 0; display: flex; justify-content: space-between; align-items: center; height: 12px;">
+    <div class="message message-#{senderClass} #{alignmentClass}">
+      <div class="message-bubble">
+        <div class="message-header">
           <span class="sender">#{message.sender_name || message.sender_type}</span>
           <span class="time">#{timeStr}</span>
         </div>
-        <div class="message-content" style="margin: 0; padding: 0; line-height: 1.2; font-size: 12px; word-wrap: break-word; overflow-wrap: break-word;">
+        <div class="message-content">
           #{if message.content and message.content.trim() then App.Utils.htmlEscape(message.content) else ''}
           #{fileContent}
         </div>
