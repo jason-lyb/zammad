@@ -26,11 +26,19 @@ class KakaoChatSession extends App.ControllerSubContent
     # menu:render 이벤트 바인딩 - 네비게이션 하이라이트 유지
     @controllerBind('menu:render', =>
       if @isActive and @internalView is 'kakao_chat_session'
-        console.log 'KakaoChatSession menu:render event - maintaining navigation highlight'
-        # 세션 상세 화면에서는 카카오톡 상담 메뉴 하이라이트 유지
-        @delay(=>
-          @navupdate '#kakao_chat'
-        , 10, 'nav_highlight_maintain')
+        currentRoute = window.location.hash
+        isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
+        isKakaoChatList = currentRoute?.match(/^#kakao_chat($|\/)/)
+
+        if isKakaoChatList and isInSessionDetail
+          console.log 'KakaoChatSession menu:render event - maintaining navigation highlight'
+          # 세션 상세 화면에서는 카카오톡 상담 메뉴 하이라이트 유지
+          @delay(=>
+            @navupdate '#kakao_chat'
+          , 10, 'nav_highlight_maintain')
+        else
+          console.log 'KakaoChatSession menu:render event - releasing due to navigation change'
+          @release()
     )
     
     # 세션 데이터 로드는 show에서만 실행
@@ -1408,6 +1416,7 @@ class KakaoChatSession extends App.ControllerSubContent
     @controllerUnbind('kakao_agent_assigned')
     @controllerUnbind('kakao_customer_linked')
     @controllerUnbind('kakao_customer_unlinked')
+    @controllerUnbind('menu:render')
     
     # 고객 검색 폼 정리
     @customerSearchForm = null

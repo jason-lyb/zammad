@@ -149,8 +149,9 @@ class KakaoChat extends App.Controller
     # 목록 화면에 있을 때만 activeView 설정 (세션 상세 화면에서는 건드리지 않음)
     currentRoute = window.location.hash
     isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
+    isKakaoChatList = currentRoute?.match(/^#kakao_chat($|\/)/)
     
-    if not isInSessionDetail
+    if isKakaoChatList and isInSessionDetail
       console.log 'KakaoChat render - current activeView before setting:', KakaoChat.getActiveView()
       @setActiveView('kakao_chat_list')
       console.log 'KakaoChat render - activeView after setting:', KakaoChat.getActiveView()
@@ -451,9 +452,10 @@ class KakaoChatRouter extends App.ControllerPermanent
     # 인증 확인
     @authenticateCheckRedirect()
     
-    # 라우터 레벨에서 activeView 설정
-    console.log 'KakaoChatRouter - setting activeView to chat_list'
-    if window.App
+    # 현재 라우트가 카카오톡 상담 화면일 때만 activeView 설정
+    currentRoute = window.location.hash
+    isKakaoChatRoute = currentRoute?.match(/^#kakao_chat($|\/)/)
+    if window.App and isKakaoChatRoute
       window.App.activeKakaoView = 'kakao_chat_list'
       console.log 'KakaoChatRouter - set activeView to:', window.App.activeKakaoView
 
