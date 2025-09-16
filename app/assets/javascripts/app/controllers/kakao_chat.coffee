@@ -151,7 +151,7 @@ class KakaoChat extends App.Controller
     isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
     isKakaoChatList = currentRoute?.match(/^#kakao_chat($|\/)/)
     
-    if isKakaoChatList and isInSessionDetail
+    if isKakaoChatList and not isInSessionDetail
       console.log 'KakaoChat render - current activeView before setting:', KakaoChat.getActiveView()
       @setActiveView('kakao_chat_list')
       console.log 'KakaoChat render - activeView after setting:', KakaoChat.getActiveView()

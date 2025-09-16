@@ -22,23 +22,25 @@ class KakaoChatSession extends App.ControllerSubContent
     
     # WebSocket 이벤트 바인딩 (constructor에서만 1회 실행)
     @bindWebSocketEvents()
+
+    @controllerUnbind('menu:render')
     
-    # menu:render 이벤트 바인딩 - 네비게이션 하이라이트 유지
+    # menu:render 이벤트 바인딩 - 네비게이션 하이라이트 유지만 하고 release는 하지 않음
     @controllerBind('menu:render', =>
       if @isActive and @internalView is 'kakao_chat_session'
         currentRoute = window.location.hash
-        isInSessionDetail = currentRoute?.match(/^#kakao_chat\//)
-        isKakaoChatList = currentRoute?.match(/^#kakao_chat($|\/)/)
-
-        if isKakaoChatList and isInSessionDetail
+        # 카카오 라우트인 경우에만 네비게이션 하이라이트 유지
+        isKakaoChatRoute = currentRoute?.match(/^#kakao_chat/)
+        if isKakaoChatRoute
           console.log 'KakaoChatSession menu:render event - maintaining navigation highlight'
           # 세션 상세 화면에서는 카카오톡 상담 메뉴 하이라이트 유지
           @delay(=>
             @navupdate '#kakao_chat'
           , 10, 'nav_highlight_maintain')
         else
-          console.log 'KakaoChatSession menu:render event - releasing due to navigation change'
-          @release()
+          # 다른 페이지로 이동했지만 menu:render에서는 release하지 않음
+          # release는 명시적인 화면 이탈(목록 버튼 클릭 등)에서만 수행
+          console.log 'KakaoChatSession menu:render event - route changed but keeping controller alive'
     )
     
     # 세션 데이터 로드는 show에서만 실행
@@ -75,7 +77,9 @@ class KakaoChatSession extends App.ControllerSubContent
     @loadSession().then =>
       @loadMessages()  # 세션 로드 완료 후 메시지 로드
     @loadAgents()
-    # WebSocket 이벤트 바인딩은 constructor에서만 하므로 여기서는 제거
+    
+    # WebSocket 이벤트 바인딩 - 진입 시마다 다시 바인딩하여 확실히 동작하도록 보장
+    @bindWebSocketEvents()
 
   # 안전한 사운드 재생
   playNotificationSound: =>
@@ -530,6 +534,7 @@ class KakaoChatSession extends App.ControllerSubContent
                 console.log 'Warning: Failed to add user to cache:', error
             else
               safeCustomer = null
+              console.log 'Warning: safeCustomer Null:', error
           error: (xhr, status, error) =>
             safeCustomer = null
         )
@@ -617,10 +622,8 @@ class KakaoChatSession extends App.ControllerSubContent
     @el.on('click.kakao-session', '.js-back', (e) =>
       e.preventDefault()
       console.log 'Navigating back to chat list, releasing session view'
-      # 명시적으로 상세화면 정리
-      @isActive = false
-      @internalView = null
-      @setNavigationHighlight('kakao_chat_list')  # 목록으로 돌아갈 때 전역 activeView 변경
+      # 명시적으로 상세화면 정리 - 여기서만 release 호출
+      @release()
       @navigate('#kakao_chat')
     )
     
@@ -1251,6 +1254,12 @@ class KakaoChatSession extends App.ControllerSubContent
   # WebSocket 이벤트 바인딩
   bindWebSocketEvents: =>
     # 새 메시지 수신 시 자동 새로고침
+    @controllerUnbind('kakao_message_received')
+    @controllerUnbind('kakao_messages_read')
+    @controllerUnbind('kakao_agent_assigned')  
+    @controllerUnbind('kakao_customer_linked')  
+    @controllerUnbind('kakao_customer_unlinked')  
+
     @controllerBind('kakao_message_received', (data) =>
       console.log 'KakaoChatSession received kakao_message_received:', data
       console.log 'Current session ID:', @sessionId
@@ -1265,12 +1274,19 @@ class KakaoChatSession extends App.ControllerSubContent
         console.log 'Ignoring message event - session controller not active or not in session detail view'
         return
       
+      # 현재 라우트가 실제로 이 세션의 상세 페이지인지 확인
+      currentRoute = window.location.hash
+      expectedRoute = "#kakao_chat/#{@sessionId}"
+      if currentRoute isnt expectedRoute
+        console.log 'Ignoring message event - current route does not match session:', currentRoute, 'vs', expectedRoute
+        return
+      
       # 두 가지 방식으로 세션 ID 확인 (데이터 구조가 다를 수 있음)
       eventSessionId = data.session_id || data.data?.session_id
       console.log 'Final event session ID:', eventSessionId
       
       if eventSessionId is @sessionId
-        console.log 'Session ID matches! Loading new messages...'
+        console.log 'Session ID matches and route is correct! Loading new messages...'
         
         # 새 메시지 수신 시 사운드 재생 (자신이 보낸 메시지가 아닌 경우)
         if not data.self_written
@@ -1310,6 +1326,13 @@ class KakaoChatSession extends App.ControllerSubContent
       eventSessionId = data.session_id || data.data?.session_id
       console.log 'Extracted session ID:', eventSessionId, 'vs current session:', @sessionId
       
+      # 현재 라우트가 실제로 이 세션의 상세 페이지인지 확인
+      currentRoute = window.location.hash
+      expectedRoute = "#kakao_chat/#{@sessionId}"
+      if currentRoute isnt expectedRoute
+        console.log 'Ignoring messages read event - current route does not match session:', currentRoute, 'vs', expectedRoute
+        return
+      
       # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리 - 전역 activeView도 확인
       globalActiveView = KakaoChatSession.getActiveView()
       if @isActive and eventSessionId is @sessionId and globalActiveView isnt 'kakao_chat_list'
@@ -1327,6 +1350,13 @@ class KakaoChatSession extends App.ControllerSubContent
       console.log 'KakaoChatSession received kakao_agent_assigned:', data
       console.log 'Current active view:', KakaoChatSession.getActiveView()
       console.log 'Session isActive:', @isActive
+      
+      # 현재 라우트가 실제로 이 세션의 상세 페이지인지 확인
+      currentRoute = window.location.hash
+      expectedRoute = "#kakao_chat/#{@sessionId}"
+      if currentRoute isnt expectedRoute
+        console.log 'Ignoring agent assigned event - current route does not match session:', currentRoute, 'vs', expectedRoute
+        return
       
       # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리 - 전역 activeView도 확인
       globalActiveView = KakaoChatSession.getActiveView()
@@ -1348,6 +1378,13 @@ class KakaoChatSession extends App.ControllerSubContent
       console.log 'KakaoChatSession received kakao_customer_linked:', data
       console.log 'Current active view:', KakaoChatSession.getActiveView()
       
+      # 현재 라우트가 실제로 이 세션의 상세 페이지인지 확인
+      currentRoute = window.location.hash
+      expectedRoute = "#kakao_chat/#{@sessionId}"
+      if currentRoute isnt expectedRoute
+        console.log 'Ignoring customer linked event - current route does not match session:', currentRoute, 'vs', expectedRoute
+        return
+      
       # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리
       globalActiveView = KakaoChatSession.getActiveView()
       if @isActive and data.data?.session_id is @sessionId and globalActiveView isnt 'kakao_chat_list'
@@ -1365,6 +1402,13 @@ class KakaoChatSession extends App.ControllerSubContent
     @controllerBind('kakao_customer_unlinked', (data) =>
       console.log 'KakaoChatSession received kakao_customer_unlinked:', data
       console.log 'Current active view:', KakaoChatSession.getActiveView()
+      
+      # 현재 라우트가 실제로 이 세션의 상세 페이지인지 확인
+      currentRoute = window.location.hash
+      expectedRoute = "#kakao_chat/#{@sessionId}"
+      if currentRoute isnt expectedRoute
+        console.log 'Ignoring customer unlinked event - current route does not match session:', currentRoute, 'vs', expectedRoute
+        return
       
       # 이 컨트롤러가 활성화되어 있고, 해당 세션의 이벤트일 때만 처리
       globalActiveView = KakaoChatSession.getActiveView()
@@ -1438,7 +1482,7 @@ class KakaoChatSession extends App.ControllerSubContent
   @getActiveView: =>
     window.App?.activeKakaoView || null
 
-  # 메시지 읽음 처리 (디바운스) - 전역 activeView도 확인
+  # 메시지 읽음 처리 (디바운스) - 전역 activeView와 현재 라우트도 확인
   markMessagesAsRead: =>
     console.log 'markMessagesAsRead called - sessionId:', @sessionId, 'isActive:', @isActive, 'internalView:', @internalView
     
@@ -1460,15 +1504,26 @@ class KakaoChatSession extends App.ControllerSubContent
       console.log 'markMessagesAsRead skipped - global activeView is chat list:', globalActiveView
       return
     
+    # 현재 라우트가 실제로 이 세션의 상세 페이지인지 확인
+    currentRoute = window.location.hash
+    expectedRoute = "#kakao_chat/#{@sessionId}"
+    if currentRoute isnt expectedRoute
+      console.log 'markMessagesAsRead skipped - current route does not match session:', currentRoute, 'vs', expectedRoute
+      return
+    
     console.log 'markMessagesAsRead proceeding for session:', @sessionId
     
     # 디바운스: 500ms 내에 여러 호출이 있으면 마지막 것만 실행
     @delay(=>
-      # 실행 시점에 다시 한번 확인 - internalView와 전역 activeView 모두 확인
+      # 실행 시점에 다시 한번 확인 - 라우트도 재확인
       globalActiveView = KakaoChatSession.getActiveView()
-      if not @isActive or @internalView isnt 'kakao_chat_session' or globalActiveView is 'kakao_chat_list'
-        console.log 'Canceling mark as read - view changed during delay or not in session detail'
+      currentRoute = window.location.hash
+      expectedRoute = "#kakao_chat/#{@sessionId}"
+      
+      if not @isActive or @internalView isnt 'kakao_chat_session' or globalActiveView is 'kakao_chat_list' or currentRoute isnt expectedRoute
+        console.log 'Canceling mark as read - view/route changed during delay'
         console.log 'Current state: isActive=', @isActive, 'internalView=', @internalView, 'globalActiveView=', globalActiveView
+        console.log 'Route check: current=', currentRoute, 'expected=', expectedRoute
         return
         
       console.log 'Executing delayed mark messages as read for session:', @sessionId

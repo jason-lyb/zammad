@@ -125,7 +125,7 @@
 /* 메시지 컨테이너 */
 .messages-container {
   margin-top: 20px;
-  max-width: 800px; 
+  max-width: 900px;
   width: 100%;
 
   h3 {
@@ -144,8 +144,11 @@
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 3px;
-  padding: 15px;
+  padding: 10px 5px !important;  /* 좌우 패딩 최소화 */
   background: var(--background-primary);
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .message {
@@ -204,7 +207,7 @@
   border-radius: 8px;
   border-left: 3px solid;
   min-width: 200px;
-  max-width: 85%;               /* 85%까지 사용 가능 */
+  /*max-width: 85%;               /* 85%까지 사용 가능 */
 
   .message-customer & {
     background: var(--background-highlight);
