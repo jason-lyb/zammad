@@ -395,8 +395,7 @@ class KakaoChatSession extends App.ControllerSubContent
         <div class="header">
           <div class="header-title">
             <h1>
-              #{@session.user_key} 
-              <small>#{@session.session_id}</small>
+              #{@session.session_id} 
             </h1>
             <div class="session-info">
               <span class="label label-#{statusClass}">#{statusText}</span>

@@ -312,8 +312,11 @@
     - 요청 예시 (JSON):
     ```json
     {
-      "user_key": "kakao_user_123456780",
-      "session_id": "session_abc124",
+      "user_key": "RDHkQ3DW8Znk",                                 x-user-key
+      "session_id": "RDHkQ3DW8Znk301281760",                      x-user-key + x-event-key
+      "service_key": "b85d2bbb95062ed61584ad04486d6e7f7f7352a4",  x-service_key
+      "event_key": "301281760",                                   x-event-key
+      "serialNumber" : "3663438808781566509",                     serialNumber
       "time": "2025-09-01T14:30:00+09:00",
       "content": "콜마너 가입시 업체는 어떻게 신청하나요?",
       "type": "text"
@@ -323,41 +326,58 @@
     - 요청 예시 (JSON):
     ```json
     {
-        "session_id": "session_abc124",
-        "content": "안녕하세요. 테스트 메시지입니다111121164",
-        "sender_type": "agent",
-        "agent_id": 3
+      "user_key": "RDHkQ3DW8Znk",                                 x-user-key
+      "session_id": "RDHkQ3DW8Znk301281760",                      x-user-key + x-event-key
+      "service_key": "b85d2bbb95062ed61584ad04486d6e7f7f7352a4",  x-service_key
+      "event_key": "301281760",                                   x-event-key
+      "serialNumber" : "3663438808781566509",                     serialNumber
+      "time": "2025-09-08T18:59:05+09:00",
+      "sender_type": "agent",
+      "agent_id": 26774,                                          alpha - 26774, prod - 343 적용 
+      "content": "네. 안녕하세요"
     }
     ```
   - **상담 종료 : [http://10.1.4.210:8080/api/v1/kakao_chat/end_session](http://10.1.4.210:8080/api/v1/kakao_chat/end_session)**
     - 요청 예시 (JSON):
     ```json
     {
-        "session_id": "session_abc122",
-        "reason": "상담 완료",
-        "ended_by": "agent",
-        "agent_id": "3"
+      "user_key": "RDHkQ3DW8Znk",                                 x-user-key
+      "session_id": "RDHkQ3DW8Znk301281760",                      x-user-key + x-event-key
+      "service_key": "b85d2bbb95062ed61584ad04486d6e7f7f7352a4",  x-service_key
+      "event_key": "301281760",                                   x-event-key
+      "serialNumber" : "3663438808781566509",                     serialNumber
+      "reason": "상담 완료",
+      "ended_by": "agent",
+      "agent_id": 26774,                                          alpha - 26774, prod - 343 적용 
     }
     ```    
   - **파일 전송 : [http://10.1.4.210:8080/api/v1/kakao_chat/upload_file](http://10.1.4.210:8080/api/v1/kakao_chat/upload_file)**
     - 고객 요청 예시 (JSON):
     ```json
     {
-        "session_id": "session123",
-        "sender_type": "customer",
-        "sender_name": "홍길동",
-        "content": "사진을 보내드립니다",
-        "file": [파일]
+      "user_key": "RDHkQ3DW8Znk",                                 x-user-key
+      "session_id": "RDHkQ3DW8Znk301281760",                      x-user-key + x-event-key
+      "service_key": "b85d2bbb95062ed61584ad04486d6e7f7f7352a4",  x-service_key
+      "event_key": "301281760",                                   x-event-key
+      "serialNumber" : "3663438808781566509",                     serialNumber
+      "sender_type": "customer",
+      "sender_name": "홍길동",
+      "content": "사진을 보내드립니다",
+      "file": [파일]
     }
     ```        
     - 상담원 요청 예시 (JSON):
     ```json
     {
-        "session_id": "session123",
-        "sender_type": "agent",
-        "agent_id": "123",
-        "content": "자료를 전달합니다",
-        "file": [파일]
+      "user_key": "RDHkQ3DW8Znk",                                 x-user-key
+      "session_id": "RDHkQ3DW8Znk301281760",                      x-user-key + x-event-key
+      "service_key": "b85d2bbb95062ed61584ad04486d6e7f7f7352a4",  x-service_key
+      "event_key": "301281760",                                   x-event-key
+      "serialNumber" : "3663438808781566509",                     serialNumber
+      "sender_type": "agent",
+      "agent_id": 26774,                                          alpha - 26774, prod - 343 적용 
+      "content": "자료를 전달합니다",
+      "file": [파일]
     }
 
     ```        
