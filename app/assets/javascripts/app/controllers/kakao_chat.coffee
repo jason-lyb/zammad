@@ -183,7 +183,6 @@ class KakaoChat extends App.Controller
       '''
     else
       # 세션 목록이 있을 때 - Zammad 표준 테이블 레이아웃
-      # 데이터 필드명 수정
       sessionsList = @sessions.map((session) =>
         statusClass = switch session.status
           when 'active' then 'success'
@@ -202,6 +201,25 @@ class KakaoChat extends App.Controller
         else
           "미배정"
         
+        # Zammad 표준 고객 정보 표시 (위젯 방식)
+        customerInfo = if session.linked_customer_id
+          customer = App.User.find(session.linked_customer_id)
+          if customer
+            # 사용자 아바타와 이름만 간단히 표시
+            """
+            <div class="user-info">
+              <a href="#user/profile/#{customer.id}" data-type="avatar" data-id="#{customer.id}">
+                #{customer.avatar("30", "", "avatar")} #{customer.displayName()}
+              </a>
+            </div>
+            """
+          else
+            # 고객 ID만 있고 객체가 없는 경우
+            "<span class='text-muted'>#{session.linked_customer_id}</span>"
+        else
+          # 연결된 고객이 없는 경우
+          "<span class='text-muted'>-</span>"
+        
         # 마지막 메시지 발신 주체에 따른 색상 클래스 결정
         lastMsgClass = switch session.last_message_sender
           when 'customer' then 'last-message-customer'
@@ -212,9 +230,12 @@ class KakaoChat extends App.Controller
         """
         <tr class="session-row" data-session-id="#{session.session_id}" data-id="#{session.id}">
           <td>
-            <strong>#{session.customer_name}</strong> #{unreadBadge}
+            <strong>#{session.user_key}</strong> #{unreadBadge}
             <br>
             <small class="text-muted">#{session.session_id}</small>
+          </td>
+          <td class="customer-cell">
+            #{customerInfo}
           </td>
           <td>
             <span class="label label-#{statusClass}">#{@getStatusText(session.status)}</span>
@@ -253,7 +274,8 @@ class KakaoChat extends App.Controller
               <table class="table table-striped table-hover">
                 <thead>
                   <tr>
-                    <th style="width: 200px;">고객</th>
+                    <th style="width: 180px;">세션 정보</th>
+                    <th style="width: 180px;">고객</th>
                     <th style="width: 100px;">상태</th>
                     <th>마지막 메시지</th>
                     <th style="width: 120px;">담당자</th>
@@ -271,12 +293,24 @@ class KakaoChat extends App.Controller
     
     @el.html(html)
     
+    # Zammad 표준 사용자 팝오버 이벤트 바인딩
+    @el.find('[data-type="avatar"]').popover(
+      delay: 100
+      position: 'right'
+      template: App.view('popover/user')
+    )
+    
     # 이벤트 바인딩
     @bindEvents()
+
   # 이벤트 바인딩
   bindEvents: =>
-    # 세션 행 클릭 시 상세 페이지로 이동
+    # 세션 행 클릭 시 상세 페이지로 이동 (고객 아바타 제외)
     @el.on('click', '.session-row', (e) =>
+      # 사용자 아바타나 팝오버를 클릭한 경우 세션 이동 방지
+      if $(e.target).closest('[data-type="avatar"], .popover').length > 0
+        return
+        
       sessionId = $(e.currentTarget).data('session-id')
       console.log 'session click', sessionId   
 

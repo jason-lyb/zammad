@@ -395,7 +395,7 @@ class KakaoChatSession extends App.ControllerSubContent
         <div class="header">
           <div class="header-title">
             <h1>
-              #{@session.customer_name} 
+              #{@session.user_key} 
               <small>#{@session.session_id}</small>
             </h1>
             <div class="session-info">
@@ -416,9 +416,9 @@ class KakaoChatSession extends App.ControllerSubContent
         <div class="content">
           <div class="session-details">
             <div class="customer-info customer-info-row">
-              <h3>고객 정보</h3>
+              <h3>세션 정보</h3>
               <div class="customer-info-horizontal">
-                <span><strong>이름:</strong> #{@session.customer_name}</span>
+                <span><strong>고객 ID:</strong> #{@session.user_key}</span>
                 <span><strong>세션 ID:</strong> #{@session.session_id}</span>
                 <span><strong>시작 시간:</strong> #{if @session.started_at then @humanTime(@session.started_at) else '없음'}</span>
                 <span><strong>진행 시간:</strong> #{@session.duration || '0분'}</span>
