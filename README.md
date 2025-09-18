@@ -1,5 +1,7 @@
 # Zammad 오픈소스 개발
 
+**개발문서 : [개발 문서](https://docs.google.com/document/d/1HAR4aW2U-LxynXZUOy3pHF-DH8a7amtcHwapPU9U6oE/edit?tab=t.owolq5gvdha4)** 
+
 - ## 설정
   - 파일 전송 디렉토리 설정
     - docker exec zammad-railsserver mkdir -p /opt/zammad/storage/kakao_chat/thumbnails
@@ -307,6 +309,22 @@
         docker-compose restart zammad-nginx zammad-railsserver
     - 
 
+- ## CTI API 연동
+  - 콜마너 CID XE 서버 호출
+    - 전화 인입시 인입 전화번호 사용자 조회 후 없으면 Zammad에 사용자 등록
+      - CID 수신시 전화번호로 Zammad 사용자 자동 연동 됨
+    - 부재중 전화시 부재중 전화 티켓 생성
+    - call_id로 1 Call Cycle 연동
+    - **[http://10.1.4.210:8080/api/v1/cti/:token](http://10.1.4.210:8080/api/v1/cti/:token)** 
+      ```json
+      {
+        "event": "newCall",                                     newCall(신규), hangup(전화끊기), answer(전화받기)
+        "direction": "in",                                      in , out
+        "from": "01012345678",
+        "to": "16886618",
+        "call_id": "2776-0918102145-01039522869",               채널번호-월일시분초-전화번호     
+        "user": "auto"
+      }
 - ## 카카오 상담톡 API 추가
   - **메세지 수신 : [http://10.1.4.210:8080/api/v1/kakao_chat/message](http://10.1.4.210:8080/api/v1/kakao_chat/message)** 
     - 요청 예시 (JSON):
@@ -332,7 +350,7 @@
       "event_key": "301281760",                                   x-event-key
       "serialNumber" : "3663438808781566509",                     serialNumber
       "time": "2025-09-08T18:59:05+09:00",
-      "sender_type": "agent",
+      "sender_type": "chatbot",                                   agent, customer, chatbot
       "agent_id": 26774,                                          alpha - 26774, prod - 343 적용 
       "content": "네. 안녕하세요"
     }
@@ -347,7 +365,7 @@
       "event_key": "301281760",                                   x-event-key
       "serialNumber" : "3663438808781566509",                     serialNumber
       "reason": "상담 완료",
-      "ended_by": "agent",
+      "ended_by": "customer",                                     agent, customer, chatbot
       "agent_id": 26774,                                          alpha - 26774, prod - 343 적용 
     }
     ```    
@@ -360,7 +378,7 @@
       "service_key": "b85d2bbb95062ed61584ad04486d6e7f7f7352a4",  x-service_key
       "event_key": "301281760",                                   x-event-key
       "serialNumber" : "3663438808781566509",                     serialNumber
-      "sender_type": "customer",
+      "ended_by": "customer",                                     agent, customer, chatbot
       "sender_name": "홍길동",
       "content": "사진을 보내드립니다",
       "file": [파일]
@@ -374,7 +392,7 @@
       "service_key": "b85d2bbb95062ed61584ad04486d6e7f7f7352a4",  x-service_key
       "event_key": "301281760",                                   x-event-key
       "serialNumber" : "3663438808781566509",                     serialNumber
-      "sender_type": "agent",
+      "sender_type": "chatbot",                                   agent, customer, chatbot
       "agent_id": 26774,                                          alpha - 26774, prod - 343 적용 
       "content": "자료를 전달합니다",
       "file": [파일]
