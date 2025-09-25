@@ -238,6 +238,14 @@ class KakaoChatSession extends App.ControllerSubContent
     else
       ''
     
+    # 변수를 템플릿 밖에서 미리 정의
+    if message.content and message.content.trim() and message.content.match(/^https?:\/\/.+\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)
+      escapedUrl = App.Utils.htmlEscape(message.content)
+      encodedUrl = encodeURIComponent(message.content)
+      downloadUrl = "/kakao_chat/download_image?url=#{encodedUrl}"
+      imageId = "url-image-#{Date.now()}"
+
+
     """
     <div class="message message-#{senderClass} #{alignmentClass}">
       <div class="message-bubble">
@@ -246,7 +254,17 @@ class KakaoChatSession extends App.ControllerSubContent
           <span class="time">#{timeStr}</span>
         </div>
         <div class="message-content">
-          #{if message.content and message.content.trim() then App.Utils.htmlEscape(message.content) else ''}
+          #{
+            if message.content and message.content.trim()
+              if message.content.match(/^https?:\/\/.+\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)
+                "<img src='#{escapedUrl}' alt='Image' 
+                  style='max-width: 150px; max-height: 150px; border: 1px solid #ddd; cursor: pointer; border-radius: 2px;' 
+                  class='js-image-preview' data-file-id='#{imageId}' data-download-url='#{downloadUrl}' />"
+              else
+                App.Utils.htmlEscape(message.content)
+            else
+              ''
+          }
           #{fileContent}
         </div>
       </div>
@@ -1175,11 +1193,12 @@ class KakaoChatSession extends App.ControllerSubContent
     
     return []
 
-  # 텍스트 메시지 전송
+  # 텍스트 메시지 전송 (기존 + 외부 API 추가 호출)
   sendTextMessage: (content) =>
     # 대기중 세션에서 첫 메시지인지 확인
     isFirstMessageInWaitingSession = @session?.status is 'waiting'
     
+    # 1. 먼저 기존 내부 API 호출
     App.Ajax.request(
       id: 'kakao_chat_send_message'
       type: 'POST'
@@ -1187,8 +1206,13 @@ class KakaoChatSession extends App.ControllerSubContent
       data: JSON.stringify(content: content)
       processData: false
       success: (data) =>
+        console.log 'Internal message API sent successfully:', data
+        
+        # 2. 내부 API 성공 후 외부 API도 호출
+        @callExternalSendMessageAPI(content)
+        
+        # 나머지 기존 로직
         @sendingMessage = false
-        console.log 'Message sent successfully:', data
         @el.find('.js-message-input').val('')
         
         # 대기중 세션에서 첫 메시지 전송 시 세션 정보 업데이트
@@ -1205,7 +1229,7 @@ class KakaoChatSession extends App.ControllerSubContent
         alert('메시지 전송에 실패했습니다.')
     )
 
-  # 파일 업로드
+  # 파일 업로드 (기존 + 외부 API 추가 호출)
   uploadFiles: (files, content = '') =>
     formData = new FormData()
     
@@ -1217,6 +1241,7 @@ class KakaoChatSession extends App.ControllerSubContent
     if content
       formData.append('content', content)
     
+    # 1. 먼저 기존 내부 API 호출
     $.ajax(
       url: "#{App.Config.get('api_path')}/kakao_chat/sessions/#{@sessionId}/upload"
       type: 'POST'
@@ -1226,8 +1251,13 @@ class KakaoChatSession extends App.ControllerSubContent
       headers:
         'X-CSRF-Token': $('meta[name=csrf-token]').attr('content')
       success: (data) =>
+        console.log 'Internal file upload API successful:', data
+        
+        # 2. 내부 API 성공 후 외부 API도 호출
+        @callExternalUploadFileAPI(files, content)
+        
+        # 나머지 기존 로직
         @sendingMessage = false
-        console.log 'Files uploaded successfully:', data
         
         # 입력 필드 초기화
         @el.find('.js-message-input').val('')
@@ -1541,10 +1571,64 @@ class KakaoChatSession extends App.ControllerSubContent
       )
     , 500, 'mark_messages_read')
 
+  # 외부 메시지 전송 API 호출
+  callExternalSendMessageAPI: (content) =>
+    App.Ajax.request(
+      id: 'kakao_chat_external_send_message'
+      type: 'POST'
+      url: "#{App.Config.get('api_path')}/kakao_chat/agent/send_message"
+      data: JSON.stringify({
+        session_id: @sessionId
+        content: content
+        message_type: 'text'
+      })
+      processData: false
+      contentType: 'application/json'
+      success: (data) =>
+        console.log 'External message API sent successfully:', data
+        if data.external_response
+          console.log 'External API response:', data.external_response
+      error: (xhr, status, error) =>
+        console.error 'Failed to send message via external API:', error
+        console.error 'Response:', xhr.responseText if xhr.responseText
+        # 외부 API 실패는 조용히 처리 (사용자에게 알리지 않음)
+    )
+
+  # 외부 파일 업로드 API 호출
+  callExternalUploadFileAPI: (files, content = '') =>
+    formData = new FormData()
+    
+    # 세션 ID 추가
+    formData.append('session_id', @sessionId)
+    
+    # 파일들 추가
+    for file in files
+      formData.append('file', file)
+    
+    # 메시지 내용 추가 (선택사항)
+    if content
+      formData.append('content', content)
+    
+    $.ajax(
+      url: "#{App.Config.get('api_path')}/kakao_chat/agent/upload_file"
+      type: 'POST'
+      data: formData
+      processData: false
+      contentType: false
+      headers:
+        'X-CSRF-Token': $('meta[name=csrf-token]').attr('content')
+      success: (data) =>
+        console.log 'External file upload API successful:', data
+        if data.external_response
+          console.log 'External API response:', data.external_response
+      error: (xhr, status, error) =>
+        console.error 'Failed to upload files via external API:', error
+        # 외부 API 실패는 조용히 처리 (사용자에게 알리지 않음)
+    )
+
 # App 네임스페이스에 등록
 App.KakaoChatSession = KakaoChatSession
 
-# Router 등록
 class KakaoChatSessionRouter extends App.ControllerPermanent
   constructor: (params) ->
     super

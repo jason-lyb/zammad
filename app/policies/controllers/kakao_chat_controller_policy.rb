@@ -38,6 +38,10 @@ class Controllers::KakaoChatControllerPolicy < Controllers::ApplicationControlle
     user.permissions?(['admin.integration', 'chat.agent'])
   end
 
+  def download_image?
+    user.permissions?(['admin.integration', 'chat.agent'])
+  end
+
   def link_customer?
     user.permissions?(['admin.integration', 'chat.agent'])
   end
@@ -78,6 +82,14 @@ class Controllers::KakaoChatControllerPolicy < Controllers::ApplicationControlle
   def file_thumbnail?
     # 썸네일은 컨트롤러에서 별도 권한 확인
     true
+  end
+
+  def agent_send_message?
+    user.permissions?(['admin.integration', 'chat.agent'])
+  end
+
+  def agent_upload_file?
+    user.permissions?(['admin.integration', 'chat.agent'])
   end
 
 end

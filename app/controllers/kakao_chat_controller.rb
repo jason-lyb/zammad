@@ -1,3 +1,7 @@
+require 'net/http'
+require 'uri'
+require 'json'
+
 class KakaoChatController < ApplicationController
   prepend_before_action -> { authentication_check && authorize! }, except: [:receive_message, :send_message_api, :end_session_api, :upload_file_api, :download_file, :file_thumbnail]
   skip_before_action :verify_csrf_token, only: [:receive_message, :send_message_api, :end_session_api, :upload_file_api]
@@ -437,8 +441,8 @@ class KakaoChatController < ApplicationController
     return render json: { error: 'content is required' }, status: :bad_request if content.blank?
     return render json: { error: 'sender_type must be customer, agent, or system' }, status: :bad_request unless %w[customer agent system].include?(sender_type)
     
-    # 상담원 메시지인 경우 sender_id 또는 current_user 확인
-    if sender_type == 'agent'
+    # 상담원 또는 챗봇 메시지인 경우 sender_id 또는 current_user 확인
+    if sender_type.in?(['agent', 'chatbot'])
       if sender_id.present?
         sender_user = User.find_by(id: sender_id)
         return render json: { error: 'Agent not found' }, status: :not_found unless sender_user
@@ -661,11 +665,11 @@ class KakaoChatController < ApplicationController
     return render json: { error: 'user_key is required' }, status: :bad_request if user_key.blank?
     return render json: { error: 'session_id is required' }, status: :bad_request if session_id.blank?
     return render json: { error: 'content or contents is required' }, status: :bad_request if content.blank? && contents.blank?
-    return render json: { error: 'sender_type must be customer or agent' }, status: :bad_request unless %w[customer agent].include?(sender_type)
+    return render json: { error: 'sender_type must be customer,  or agent' }, status: :bad_request unless %w[customer agent].include?(sender_type)
     
-    # 상담원 메시지인 경우 agent_id 필수 체크
-    if sender_type == 'agent' && agent_id.blank?
-      return render json: { error: 'agent_id is required for agent messages' }, status: :bad_request
+    # 상담원 또는 챗봇 메시지인 경우 agent_id 필수 체크
+    if sender_type.in?(['agent', 'chatbot']) && agent_id.blank?
+      return render json: { error: 'agent_id is required for agent and chatbot messages' }, status: :bad_request
     end
 
     begin
@@ -1069,7 +1073,136 @@ class KakaoChatController < ApplicationController
     Sessions.broadcast(notification_data)
   end  
 
-  private
+  def download_image
+    url = params[:url]
+    
+    # URL 유효성 검사
+    return render json: { error: 'Invalid URL' }, status: :bad_request unless valid_image_url?(url)
+    
+    begin
+      response = Net::HTTP.get_response(URI(url))
+      
+      if response.code == '200'
+        filename = extract_filename_from_url(url)
+        send_data response.body, 
+                  filename: filename,
+                  type: response.content_type,
+                  disposition: 'attachment'
+      else
+        render json: { error: 'Image not found' }, status: :not_found
+      end
+    rescue => e
+      Rails.logger.error "Image download error: #{e.message}"
+      render json: { error: 'Download failed' }, status: :internal_server_error
+    end
+  end
+
+  # 상담원용 외부 API 메시지 전송
+  def agent_send_message
+    return render json: { error: 'KakaoTalk integration not enabled' }, status: :forbidden unless kakao_integration_enabled?
+    return render json: { error: 'Access denied' }, status: :forbidden unless current_user.permissions?(['chat.agent'])
+
+    # 필수 파라미터 확인
+    session_id = params[:session_id]
+    content = params[:content]&.strip
+    message_type = params[:message_type] || 'text'
+    
+    return render json: { error: 'session_id is required' }, status: :bad_request if session_id.blank?
+    return render json: { error: 'content is required' }, status: :bad_request if content.blank?
+
+    begin
+      # 세션 확인
+      session = KakaoConsultationSession.find_by(session_id: session_id)
+      return render json: { error: 'Session not found' }, status: :not_found unless session
+      return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
+
+      # 외부 API 호출을 위한 데이터 준비
+      api_data = {
+        session_id: session_id,
+        content: content,
+        sender_type: 'agent',
+        agent_id: current_user.id,
+        sender_name: current_user.fullname,
+        message_type: message_type
+      }
+
+      # Consultalk API 호출
+      api_response = call_consultalk_send_message_api(api_data)
+      
+      if api_response[:success]
+        render json: {
+          status: 'success',
+          message: 'Message sent successfully',
+          external_response: api_response[:data]
+        }
+      else
+        render json: {
+          error: 'Failed to send message via external API',
+          details: api_response[:error]
+        }, status: :internal_server_error
+      end
+
+    rescue StandardError => e
+      Rails.logger.error "Agent send message error: #{e.message}"
+      render json: { error: 'Failed to send message' }, status: :internal_server_error
+    end
+  end
+
+  # 상담원용 외부 API 파일 업로드
+  def agent_upload_file
+    return render json: { error: 'KakaoTalk integration not enabled' }, status: :forbidden unless kakao_integration_enabled?
+    return render json: { error: 'Access denied' }, status: :forbidden unless current_user.permissions?(['chat.agent'])
+
+    # 필수 파라미터 확인
+    session_id = params[:session_id]
+    return render json: { error: 'session_id is required' }, status: :bad_request if session_id.blank?
+    return render json: { error: 'No file provided' }, status: :bad_request unless params[:file].present?
+
+    begin
+      # 세션 확인
+      session = KakaoConsultationSession.find_by(session_id: session_id)
+      return render json: { error: 'Session not found' }, status: :not_found unless session
+      return render json: { error: 'Access denied' }, status: :forbidden unless can_access_session?(session)
+
+      uploaded_file = params[:file]
+      
+      # 파일 검증
+      validation_result = validate_uploaded_file(uploaded_file)
+      unless validation_result[:valid]
+        return render json: { error: validation_result[:error] }, status: :bad_request
+      end
+
+      # Consultalk API 호출을 위한 데이터 준비
+      api_data = {
+        session_id: session_id,
+        file: uploaded_file,
+        sender_type: 'agent',
+        agent_id: current_user.id,
+        sender_name: current_user.fullname,
+        content: params[:content] || ""
+      }
+
+      # Consultalk API 호출
+      api_response = call_consultalk_upload_file_api(api_data)
+      
+      if api_response[:success]
+        render json: {
+          status: 'success',
+          message: 'File uploaded successfully',
+          external_response: api_response[:data]
+        }
+      else
+        render json: {
+          error: 'Failed to upload file via external API',
+          details: api_response[:error]
+        }, status: :internal_server_error
+      end
+
+    rescue StandardError => e
+      Rails.logger.error "Agent upload file error: #{e.message}"
+      render json: { error: 'Failed to upload file' }, status: :internal_server_error
+    end
+  end  
 
   def verify_api_authentication
     token = request.headers['Authorization']&.split(' ')&.last || params[:token]
@@ -1296,8 +1429,8 @@ class KakaoChatController < ApplicationController
                     '알 수 없음'
                   end
     
-    # 상담원 메시지인 경우 세션에 상담원 할당 및 상태 변경
-    if sender_type == 'agent' && agent_id.present?
+    # 상담원 또는 챗봇 메시지인 경우 세션에 상담원 할당 및 상태 변경
+    if sender_type.in?(['agent', 'chatbot']) && agent_id.present?
       agent = User.find_by(id: agent_id)
       if agent
         update_data = {}
@@ -1323,7 +1456,7 @@ class KakaoChatController < ApplicationController
       message_id: serialNumber, # 카카오톡의 serialNumber를 message_id로 사용
       serialNumber: serialNumber, # serialNumber 컬럼에도 저장
       sender_type: sender_type,
-      sender_id: (sender_type == 'agent' && agent_id.present?) ? agent_id : nil,
+      sender_id: (sender_type.in?(['agent', 'chatbot']) && agent_id.present?) ? agent_id : nil,
       sender_name: sender_name,
       content: final_content,
       sent_at: sent_at,
@@ -1382,7 +1515,7 @@ class KakaoChatController < ApplicationController
     # 메시지 카운트 업데이트
     stats.increment!(:total_messages)
     stats.increment!(:customer_messages) if message.sender_type == 'customer'
-    stats.increment!(:agent_messages) if message.sender_type == 'agent'
+    stats.increment!(:agent_messages) if message.sender_type.in?(['agent', 'chatbot'])
     
     # 세션 시간 계산
     if session.started_at && session.ended_at
@@ -1390,8 +1523,8 @@ class KakaoChatController < ApplicationController
       stats.update!(session_duration: duration)
     end
     
-    # 평균 응답 시간 계산 (마지막 고객 메시지 이후 첫 상담원 응답까지의 시간)
-    if message.sender_type == 'agent'
+    # 평균 응답 시간 계산 (마지막 고객 메시지 이후 첫 상담원/챗봇 응답까지의 시간)
+    if message.sender_type.in?(['agent', 'chatbot'])
       last_customer_message = session.kakao_consultation_messages
                                     .where(sender_type: 'customer')
                                     .where('sent_at < ?', message.sent_at)
@@ -1754,4 +1887,146 @@ class KakaoChatController < ApplicationController
     Sessions.broadcast(notification_data)
     Rails.logger.info "Broadcasted file message for session #{session.session_id}"
   end
+
+  def valid_image_url?(url)
+    url.present? && url.match(/^https?:\/\/.+\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)
+  end
+
+  def extract_filename_from_url(url)
+    uri = URI(url)
+    filename = File.basename(uri.path)
+    filename.presence || "image_#{Time.current.to_i}.jpg"
+  end
+
+
+  private
+
+  # Consultalk 메시지 전송 API 호출
+  def call_consultalk_send_message_api(data)
+    begin
+      # API endpoint와 토큰 가져오기
+      api_endpoint = Setting.get('kakao_api_endpoint')
+      api_token = Setting.get('kakao_api_token')
+      
+      return { success: false, error: 'API endpoint not configured' } unless api_endpoint
+      return { success: false, error: 'API token not configured' } unless api_token
+      
+      url = "#{api_endpoint}/api/v1/send/zammad_send_message"
+
+      # 세션 정보에서 필요한 키 가져오기
+      session = KakaoConsultationSession.find_by(session_id: data[:session_id])
+      return { success: false, error: 'Session not found' } unless session
+
+      # 요청 데이터 구성
+      request_body = {
+        user_key: session.user_key,
+        service_key: session.service_key,
+        event_key: session.event_key,
+        content: data[:content]
+      }
+
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = true if uri.scheme == 'https'
+
+      if http.use_ssl?
+        http.verify_mode = OpenSSL::SSL::VERIFY_NONE  # 임시로만 사용!
+        Rails.logger.warn "SSL verification disabled for testing"
+      end
+
+      Rails.logger.info "uri.host: #{uri.host}"
+      Rails.logger.info "uri.port: #{uri.port}"
+      
+      # 타임아웃 설정 추가
+      http.open_timeout = 10    # 연결 타임아웃: 10초
+      http.read_timeout = 15    # 읽기 타임아웃: 15초
+      http.write_timeout = 10   # 쓰기 타임아웃: 10초 (Ruby 2.6+)
+
+      request = Net::HTTP::Post.new(uri.path)
+      request['Content-Type'] = 'application/json'
+      request['User-Agent'] = 'Zammad-KakaoChat/1.0'
+      
+      # Authorization 헤더가 필요한 경우 주석 해제
+      # request['Authorization'] = "Bearer #{api_token}"
+      
+      request.body = request_body.to_json
+
+      Rails.logger.info "Calling Consultalk API: #{url}"
+      Rails.logger.info "Request body: #{request_body.to_json}"
+
+      response = http.request(request)
+
+      Rails.logger.info "Consultalk API response: #{response.code}"
+      Rails.logger.info "Response body: #{response.body}"
+
+      if response.code == '200'
+        result = JSON.parse(response.body) rescue {}
+        { success: true, data: result }
+      else
+        Rails.logger.error "Consultalk API error: #{response.code} - #{response.body}"
+        { success: false, error: "API returned #{response.code}", response_body: response.body }
+      end
+
+    rescue Net::OpenTimeout => e
+      Rails.logger.error "Consultalk API connection timeout: #{e.message}"
+      { success: false, error: 'Connection timeout - unable to reach API server' }
+    rescue Net::ReadTimeout => e
+      Rails.logger.error "Consultalk API read timeout: #{e.message}"
+      { success: false, error: 'Read timeout - API server did not respond in time' }
+    rescue StandardError => e
+      Rails.logger.error "Consultalk API call error: #{e.message}"
+      { success: false, error: e.message }
+    end
+  end
+
+  # Consultalk 파일 업로드 API 호출
+  def call_consultalk_upload_file_api(data)
+    begin
+      # API endpoint와 토큰 가져오기 (Setting에서 설정)
+      api_endpoint = Setting.get('kakao_api_endpoint')
+      api_token = Setting.get('kakao_api_token')
+      
+      return { success: false, error: 'API endpoint not configured' } unless api_endpoint
+      return { success: false, error: 'API token not configured' } unless api_token
+      
+      url = "#{api_endpoint}/api/v1/send/zammad_upload_file"
+
+      # 세션 정보에서 필요한 키 가져오기
+      session = KakaoConsultationSession.find_by(session_id: data[:session_id])
+      return { success: false, error: 'Session not found' } unless session
+
+      # URL에 파라미터 추가 (API 문서에 따라)
+      uri = URI(url)
+      uri.query = URI.encode_www_form({
+        user_key: session.user_key,
+        service_key: session.service_key,
+        event_key: session.event_key
+      })
+
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = true if uri.scheme == 'https'
+
+      request = Net::HTTP::Post.new(uri.request_uri)
+      request['Authorization'] = "Bearer #{api_token}"
+      
+      # 파일을 바이너리로 직접 전송
+      request['Content-Type'] = data[:file].content_type
+      request['Content-Disposition'] = "attachment; filename=\"#{data[:file].original_filename}\""
+      request.body = data[:file].read
+      
+      response = http.request(request)
+
+      if response.code == '200'
+        result = JSON.parse(response.body) rescue {}
+        { success: true, data: result }
+      else
+        Rails.logger.error "Consultalk file upload API error: #{response.code} - #{response.body}"
+        { success: false, error: "API returned #{response.code}" }
+      end
+
+    rescue StandardError => e
+      Rails.logger.error "Consultalk file upload API call error: #{e.message}"
+      { success: false, error: e.message }
+    end
+  end  
 end

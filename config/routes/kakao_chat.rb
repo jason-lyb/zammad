@@ -16,6 +16,7 @@ Zammad::Application.routes.draw do
     delete '/kakao_chat/sessions/:id/link_customer', to: 'kakao_chat#unlink_customer'
     get    '/kakao_chat/unread_count',               to: 'kakao_chat#unread_count'
     get    '/kakao_chat/agents',                     to: 'kakao_chat#available_agents'
+    get    '/kakao_chat/download_image',             to: 'kakao_chat#download_image'
     
     # 카카오톡에서 메시지 수신 (Webhook)
     post   '/kakao_chat/message',                     to: 'kakao_chat#receive_message'
@@ -32,5 +33,9 @@ Zammad::Application.routes.draw do
     
     # 범용 상담 종료 API (토큰 인증)
     post   '/kakao_chat/end_session',                 to: 'kakao_chat#end_session_api'
+    
+    # 상담원용 외부 API 호출 (consultalk API)
+    post   '/kakao_chat/agent/send_message',          to: 'kakao_chat#agent_send_message'
+    post   '/kakao_chat/agent/upload_file',           to: 'kakao_chat#agent_upload_file'
   end
 end
