@@ -44,8 +44,8 @@ class CreateKakaoConsultationSessions < ActiveRecord::Migration[6.1]
         t.references :kakao_consultation_session, null: false, foreign_key: true, index: { name: 'idx_kakao_messages_session_id' }
         t.string :message_id, comment: '상담톡 API 메시지 ID'
         t.string :serialNumber, comment: '카카오톡 메시지 시리얼 번호'
-        t.string :sender_type, null: false, comment: 'customer, agent, system'
-        t.integer :sender_id, comment: '발신자 ID (agent인 경우 User ID)'
+        t.string :sender_type, null: false, comment: 'customer, agent, system, chatbot'
+        t.integer :sender_id, comment: '발신자 ID (agent, chatbot인 경우 User ID)'
         t.string :sender_name, comment: '발신자 이름'
         t.text :content, null: false, comment: '메시지 내용'
         t.string :message_type, default: 'text', comment: 'text, image, file, system'

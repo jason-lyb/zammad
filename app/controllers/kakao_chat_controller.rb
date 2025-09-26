@@ -442,7 +442,7 @@ class KakaoChatController < ApplicationController
     return render json: { error: 'sender_type must be customer, agent, or system' }, status: :bad_request unless %w[customer agent system].include?(sender_type)
     
     # 상담원 또는 챗봇 메시지인 경우 sender_id 또는 current_user 확인
-    if sender_type.in?(['agent', 'chatbot'])
+    if sender_type == 'agent'
       if sender_id.present?
         sender_user = User.find_by(id: sender_id)
         return render json: { error: 'Agent not found' }, status: :not_found unless sender_user
@@ -665,11 +665,11 @@ class KakaoChatController < ApplicationController
     return render json: { error: 'user_key is required' }, status: :bad_request if user_key.blank?
     return render json: { error: 'session_id is required' }, status: :bad_request if session_id.blank?
     return render json: { error: 'content or contents is required' }, status: :bad_request if content.blank? && contents.blank?
-    return render json: { error: 'sender_type must be customer,  or agent' }, status: :bad_request unless %w[customer agent].include?(sender_type)
+    return render json: { error: 'sender_type must be customer or agent' }, status: :bad_request unless %w[customer agent].include?(sender_type)
     
     # 상담원 또는 챗봇 메시지인 경우 agent_id 필수 체크
-    if sender_type.in?(['agent', 'chatbot']) && agent_id.blank?
-      return render json: { error: 'agent_id is required for agent and chatbot messages' }, status: :bad_request
+    if sender_type == 'agent' && agent_id.blank?
+      return render json: { error: 'agent_id is required for agent messages' }, status: :bad_request
     end
 
     begin
@@ -1430,7 +1430,7 @@ class KakaoChatController < ApplicationController
                   end
     
     # 상담원 또는 챗봇 메시지인 경우 세션에 상담원 할당 및 상태 변경
-    if sender_type.in?(['agent', 'chatbot']) && agent_id.present?
+    if sender_type == 'agent' && agent_id.present?
       agent = User.find_by(id: agent_id)
       if agent
         update_data = {}
@@ -1456,7 +1456,7 @@ class KakaoChatController < ApplicationController
       message_id: serialNumber, # 카카오톡의 serialNumber를 message_id로 사용
       serialNumber: serialNumber, # serialNumber 컬럼에도 저장
       sender_type: sender_type,
-      sender_id: (sender_type.in?(['agent', 'chatbot']) && agent_id.present?) ? agent_id : nil,
+      sender_id: (sender_type.in?(['agent']) && agent_id.present?) ? agent_id : nil,
       sender_name: sender_name,
       content: final_content,
       sent_at: sent_at,
@@ -1515,7 +1515,7 @@ class KakaoChatController < ApplicationController
     # 메시지 카운트 업데이트
     stats.increment!(:total_messages)
     stats.increment!(:customer_messages) if message.sender_type == 'customer'
-    stats.increment!(:agent_messages) if message.sender_type.in?(['agent', 'chatbot'])
+    stats.increment!(:agent_messages) if message.sender_type == 'agent'
     
     # 세션 시간 계산
     if session.started_at && session.ended_at
@@ -1524,7 +1524,7 @@ class KakaoChatController < ApplicationController
     end
     
     # 평균 응답 시간 계산 (마지막 고객 메시지 이후 첫 상담원/챗봇 응답까지의 시간)
-    if message.sender_type.in?(['agent', 'chatbot'])
+    if message.sender_type == 'agent'
       last_customer_message = session.kakao_consultation_messages
                                     .where(sender_type: 'customer')
                                     .where('sent_at < ?', message.sent_at)
@@ -1950,10 +1950,6 @@ class KakaoChatController < ApplicationController
       # request['Authorization'] = "Bearer #{api_token}"
       
       request.body = request_body.to_json
-
-      Rails.logger.info "Calling Consultalk API: #{url}"
-      Rails.logger.info "Request body: #{request_body.to_json}"
-
       response = http.request(request)
 
       Rails.logger.info "Consultalk API response: #{response.code}"
@@ -1997,36 +1993,63 @@ class KakaoChatController < ApplicationController
 
       # URL에 파라미터 추가 (API 문서에 따라)
       uri = URI(url)
-      uri.query = URI.encode_www_form({
-        user_key: session.user_key,
-        service_key: session.service_key,
-        event_key: session.event_key
-      })
-
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = true if uri.scheme == 'https'
+      http.open_timeout = 10
+      http.read_timeout = 30      
 
-      request = Net::HTTP::Post.new(uri.request_uri)
-      request['Authorization'] = "Bearer #{api_token}"
+      if http.use_ssl?
+        http.verify_mode = OpenSSL::SSL::VERIFY_NONE  # 임시로만 사용!
+        Rails.logger.warn "SSL verification disabled for testing"
+      end      
+
+      request = Net::HTTP::Post.new(uri.path)  # request_uri 대신 path 사용
       
-      # 파일을 바이너리로 직접 전송
-      request['Content-Type'] = data[:file].content_type
-      request['Content-Disposition'] = "attachment; filename=\"#{data[:file].original_filename}\""
-      request.body = data[:file].read
+      # 헤더에 필수 정보 추가
+      request['user_key'] = session.user_key
+      request['service_key'] = session.service_key
+      request['event_key'] = session.event_key
+      
+      # 멀티파트 폼 데이터로 파일 전송
+      data[:file].rewind  # 파일 포인터 리셋
+      file_content = data[:file].read
+      filename = data[:file].original_filename
+      content_type = data[:file].content_type
+      
+      boundary = "----WebKitFormBoundary" + SecureRandom.hex(16)
+      
+      body_parts = []
+      body_parts << "--#{boundary}"
+      body_parts << "Content-Disposition: form-data; name=\"file\"; filename=\"#{filename}\""
+      body_parts << "Content-Type: #{content_type}"
+      body_parts << ""
+      body_parts << file_content
+      body_parts << "--#{boundary}--"
+      
+      request.body = body_parts.join("\r\n")
+      request['Content-Type'] = "multipart/form-data; boundary=#{boundary}"
+
+      Rails.logger.info "Calling Consultalk API: #{url}"
+      Rails.logger.info "Headers: user_key=#{session.user_key}, service_key=#{session.service_key[0..10]}..., event_key=#{session.event_key}"
+      Rails.logger.info "Uploading file: #{filename} (#{content_type}, #{file_content.bytesize} bytes)"
       
       response = http.request(request)
+
+      Rails.logger.info "Consultalk API response: #{response.code}"
+      Rails.logger.info "Response body: #{response.body}"      
 
       if response.code == '200'
         result = JSON.parse(response.body) rescue {}
         { success: true, data: result }
       else
         Rails.logger.error "Consultalk file upload API error: #{response.code} - #{response.body}"
-        { success: false, error: "API returned #{response.code}" }
+        { success: false, error: "API returned #{response.code}", response_body: response.body }
       end
 
     rescue StandardError => e
       Rails.logger.error "Consultalk file upload API call error: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
       { success: false, error: e.message }
     end
-  end  
+  end
 end

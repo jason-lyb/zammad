@@ -245,7 +245,16 @@ class KakaoChat extends App.Controller
               #{if session.last_message_content then App.Utils.textCleanup(session.last_message_content, 50) else '메시지 없음'}
             </div>
             <small class="text-muted #{lastMsgClass}">
-              발신: #{if session.last_message_sender == 'customer' then '고객' else if session.last_message_sender == 'agent' then '상담원' else '시스템'}
+              발신: #{
+                if session.last_message_sender == 'customer'
+                  '고객'
+                else if session.last_message_sender == 'agent' and session.agent_id in [26774, 343]
+                  '챗봇'
+                else if session.last_message_sender == 'agent'
+                  '상담원'
+                else
+                  '시스템'
+              }
             </small>
           </td>
           <td>#{agentInfo}</td>

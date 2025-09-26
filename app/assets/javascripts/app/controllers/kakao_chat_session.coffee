@@ -361,11 +361,13 @@ class KakaoChatSession extends App.ControllerSubContent
   smoothScrollToBottom: =>
     messagesList = @el.find('.messages-list')
     if messagesList.length > 0
-      # 애니메이션을 사용하여 부드럽게 스크롤
       messagesList.animate(
         scrollTop: messagesList[0].scrollHeight
-      , 300)  # 300ms 동안 부드럽게 스크롤
-      console.log 'Smooth scrolled to bottom of messages'
+      , 300, =>
+        # 애니메이션 완료 후 한 번 더 확인
+        messagesList.scrollTop(messagesList[0].scrollHeight)
+        console.log 'Smooth scrolled to bottom of messages'
+      )
 
   # 상담원 목록 로드
   loadAgents: =>
