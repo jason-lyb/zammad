@@ -350,7 +350,7 @@
       "event_key": "301281760",                                   x-event-key
       "serialNumber" : "3663438808781566509",                     serialNumber
       "time": "2025-09-08T18:59:05+09:00",
-      "sender_type": "chatbot",                                   agent, customer, chatbot
+      "sender_type": "agent",                                     agent, customer
       "agent_id": 26774,                                          alpha - 26774, prod - 343 적용 
       "content": "네. 안녕하세요"
     }
@@ -365,7 +365,7 @@
       "event_key": "301281760",                                   x-event-key
       "serialNumber" : "3663438808781566509",                     serialNumber
       "reason": "상담 완료",
-      "ended_by": "customer",                                     agent, customer, chatbot
+      "ended_by": "customer",                                     agent, customer
       "agent_id": 26774,                                          alpha - 26774, prod - 343 적용 
     }
     ```    
@@ -378,7 +378,7 @@
       "service_key": "b85d2bbb95062ed61584ad04486d6e7f7f7352a4",  x-service_key
       "event_key": "301281760",                                   x-event-key
       "serialNumber" : "3663438808781566509",                     serialNumber
-      "ended_by": "customer",                                     agent, customer, chatbot
+      "ended_by": "customer",                                     agent, customer
       "sender_name": "홍길동",
       "content": "사진을 보내드립니다",
       "file": [파일]
@@ -392,7 +392,7 @@
       "service_key": "b85d2bbb95062ed61584ad04486d6e7f7f7352a4",  x-service_key
       "event_key": "301281760",                                   x-event-key
       "serialNumber" : "3663438808781566509",                     serialNumber
-      "sender_type": "chatbot",                                   agent, customer, chatbot
+      "sender_type": "agent",                                     agent, customer
       "agent_id": 26774,                                          alpha - 26774, prod - 343 적용 
       "content": "자료를 전달합니다",
       "file": [파일]

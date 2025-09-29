@@ -732,9 +732,18 @@ class KakaoChatController < ApplicationController
     begin
       uploaded_file = params[:file]
       
+      # 디버깅을 위한 파일 정보 로깅
+      Rails.logger.info "File upload - Original filename: #{uploaded_file.original_filename}"
+      Rails.logger.info "File upload - Content type: #{uploaded_file.content_type}"
+      Rails.logger.info "File upload - File size: #{uploaded_file.size}"
+      Rails.logger.info "File upload - Tempfile path: #{uploaded_file.tempfile.path}"
+      
       # 파일 검증
       validation_result = validate_uploaded_file(uploaded_file)
+      Rails.logger.info "File validation result: #{validation_result}"
+      
       unless validation_result[:valid]
+        Rails.logger.error "File validation failed: #{validation_result[:error]}"
         return render json: { error: validation_result[:error] }, status: :bad_request
       end
 
@@ -1716,25 +1725,63 @@ class KakaoChatController < ApplicationController
   end
 
   def validate_uploaded_file(uploaded_file)
+    Rails.logger.info "=== FILE VALIDATION START ==="
+    Rails.logger.info "Original filename: #{uploaded_file.original_filename}"
+    Rails.logger.info "Content type: #{uploaded_file.content_type}"
+    Rails.logger.info "File size: #{uploaded_file.size} bytes"
+    
     # 파일 크기 검증
     if uploaded_file.size > KakaoChatFile::MAX_FILE_SIZE
-      return { valid: false, error: "File size too large. Maximum: #{ActionController::Base.helpers.number_to_human_size(KakaoChatFile::MAX_FILE_SIZE)}" }
+      error_msg = "File size too large. Maximum: #{ActionController::Base.helpers.number_to_human_size(KakaoChatFile::MAX_FILE_SIZE)}"
+      Rails.logger.error "File size validation failed: #{error_msg}"
+      return { valid: false, error: error_msg }
     end
 
     # 파일 확장자 검증
     extension = File.extname(uploaded_file.original_filename).downcase.delete('.')
-    unless KakaoChatFile::ALLOWED_EXTENSIONS.include?(extension)
-      return { valid: false, error: "File type not allowed. Allowed: #{KakaoChatFile::ALLOWED_EXTENSIONS.join(', ')}" }
-    end
-
-    # MIME 타입 검증
-    detected_type = Marcel::MimeType.for(uploaded_file.tempfile)
-    allowed_types = KakaoChatFile::CONTENT_TYPE_CATEGORIES.values.flatten
+    Rails.logger.info "File extension: '#{extension}'"
+    Rails.logger.info "Allowed extensions: #{KakaoChatFile::ALLOWED_EXTENSIONS}"
     
-    unless allowed_types.include?(detected_type)
-      return { valid: false, error: "Invalid file type detected: #{detected_type}" }
+    unless KakaoChatFile::ALLOWED_EXTENSIONS.include?(extension)
+      error_msg = "File type not allowed. Allowed: #{KakaoChatFile::ALLOWED_EXTENSIONS.join(', ')}"
+      Rails.logger.error "Extension validation failed: #{error_msg}"
+      return { valid: false, error: error_msg }
     end
 
+    # MIME 타입 검증 (유연한 검증)
+    begin
+      detected_type = Marcel::MimeType.for(uploaded_file.tempfile)
+      Rails.logger.info "Detected MIME type: #{detected_type}"
+      
+      allowed_types = KakaoChatFile::CONTENT_TYPE_CATEGORIES.values.flatten
+      Rails.logger.info "Allowed MIME types: #{allowed_types}"
+      
+      # MIME 타입이 허용 목록에 없는 경우에도 확장자가 허용되면 통과
+      unless allowed_types.include?(detected_type)
+        Rails.logger.warn "MIME type '#{detected_type}' not in allowed list, but extension '#{extension}' is allowed - proceeding"
+        
+        # 특정 위험한 MIME 타입은 차단
+        dangerous_types = %w[
+          application/x-executable
+          application/x-msdownload
+          application/x-msdos-program
+          application/x-winexe
+          text/x-shellscript
+          application/x-sh
+        ]
+        
+        if dangerous_types.include?(detected_type)
+          error_msg = "Dangerous file type detected: #{detected_type}"
+          Rails.logger.error "Dangerous MIME type validation failed: #{error_msg}"
+          return { valid: false, error: error_msg }
+        end
+      end
+    rescue => e
+      Rails.logger.error "MIME type detection error: #{e.message}"
+      Rails.logger.info "Proceeding with extension-based validation only"
+    end
+
+    Rails.logger.info "=== FILE VALIDATION PASSED ==="
     { valid: true }
   end
 

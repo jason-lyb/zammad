@@ -463,7 +463,7 @@ class KakaoChatSession extends App.ControllerSubContent
     
     @el.html(html)
     @bindEvents()
-    
+
     # 고객 검색 자동완성 초기화
     @initCustomerSearch()
     
@@ -632,7 +632,7 @@ class KakaoChatSession extends App.ControllerSubContent
     # 기존 이벤트 제거 (중복 방지)
     @el.off('click.kakao-session')
     @el.off('keydown.kakao-session')
-    @el.off('change.kakao-session')
+    #@el.off('change.kakao-session')
     @el.off('paste.kakao-session')
     @el.off('dragover.kakao-session')
     @el.off('drop.kakao-session')
@@ -662,13 +662,37 @@ class KakaoChatSession extends App.ControllerSubContent
     # 파일 첨부 버튼
     @el.on('click.kakao-session', '.js-attach-file', (e) =>
       e.preventDefault()
-      @el.find('.js-file-input').click()
+      e.stopPropagation()
+      console.log 'File attach button clicked'
+      
+      fileInput = @el.find('.js-file-input')[0]
+      if fileInput
+        console.log 'Found file input, triggering click'
+        # 파일 선택 초기화
+        fileInput.value = ''
+        # 파일 선택 대화상자 열기
+        fileInput.click()
+      else
+        console.error 'File input not found in DOM'
     )
     
-    # 파일 선택
-    @el.on('change.kakao-session', '.js-file-input', (e) =>
-      @handleFileSelection(e.target.files)
-    )
+    # 파일 선택 이벤트 - 직접 DOM 요소에 바인딩 (이벤트 위임 제거)
+    fileInputElement = @el.find('.js-file-input')[0]
+    if fileInputElement
+      # 기존 이벤트 제거
+      $(fileInputElement).off('change.file-select')
+      
+      # 새로운 이벤트 바인딩
+      $(fileInputElement).on('change.file-select', (e) =>
+        console.log '=== FILE INPUT CHANGE EVENT ==='
+        console.log 'Files selected:', e.target.files
+        console.log 'File count:', e.target.files?.length
+        
+        if e.target.files?.length > 0
+          @handleFileSelection(e.target.files)
+        else
+          console.log 'No files selected'
+      )
     
     # 클립보드 붙여넣기 (이미지)
     @el.on('paste.kakao-session', '.js-message-input', (e) =>
@@ -966,28 +990,50 @@ class KakaoChatSession extends App.ControllerSubContent
 
   # 파일 선택 처리
   handleFileSelection: (files) =>
-    return unless files?.length > 0
+    try
+      console.log 'handleFileSelection called with files:', files
+      console.log 'Files type:', typeof files
+      console.log 'Files is FileList?:', files instanceof FileList
+      
+      return unless files?.length > 0
+      
+      # 선택된 파일들을 배열로 변환
+      fileArray = Array.from(files)
+      console.log 'File array:', fileArray.map((f) -> f.name)
+      console.log 'File array length:', fileArray.length
     
-    # 선택된 파일들을 배열로 변환
-    fileArray = Array.from(files)
-    
-    # 파일 개수 제한 (최대 5개)
-    if fileArray.length > 5
-      alert('한 번에 최대 5개의 파일만 업로드할 수 있습니다.')
-      return
-    
-    # 각 파일 검증 및 미리보기 생성
-    validFiles = []
-    for file in fileArray
-      validation = @validateFile(file)
-      if validation.valid
-        validFiles.push(file)
+      # 파일 개수 제한 (최대 5개)
+      if fileArray.length > 5
+        alert('한 번에 최대 5개의 파일만 업로드할 수 있습니다.')
+        return
+      
+      console.log 'Starting file validation...'
+      
+      # 각 파일 검증 및 미리보기 생성
+      validFiles = []
+      for file in fileArray
+        console.log 'Validating file:', file.name
+        validation = @validateFile(file)
+        console.log 'Validation result:', validation
+        if validation.valid
+          validFiles.push(file)
+        else
+          alert("파일 '#{file.name}': #{validation.error}")
+      
+      console.log 'Valid files count:', validFiles.length
+      
+      if validFiles.length > 0
+        @selectedFiles = validFiles  # 선택된 파일들을 인스턴스 변수에 저장
+        console.log 'Calling showFilePreview...'
+        @showFilePreview(validFiles)
+        console.log 'File preview completed'
       else
-        alert("파일 '#{file.name}': #{validation.error}")
-    
-    if validFiles.length > 0
-      @selectedFiles = validFiles  # 선택된 파일들을 인스턴스 변수에 저장
-      @showFilePreview(validFiles)
+        console.log 'No valid files to process'
+        
+    catch error
+      console.error 'Error in handleFileSelection:', error
+      console.error 'Error stack:', error.stack if error.stack
+      alert('파일 처리 중 오류가 발생했습니다: ' + error.message)
 
   # 클립보드 붙여넣기 처리
   handlePaste: (event) =>
@@ -1043,51 +1089,87 @@ class KakaoChatSession extends App.ControllerSubContent
 
   # 파일 미리보기 표시
   showFilePreview: (files) =>
-    previewArea = @el.find('.js-file-preview')
-    previewArea.show()
-    
-    # 기존 미리보기 초기화
-    previewArea.empty()
-    
-    for file, index in files
-      previewItem = @createFilePreviewItem(file, index)
-      previewArea.append(previewItem)
-    
-    # 전송 버튼 텍스트 변경
-    @el.find('.js-send-message').text("파일 전송 (#{files.length}개)")
+    try
+      console.log 'showFilePreview called with files:', files.length
+      
+      previewArea = @el.find('.js-file-preview')
+      console.log 'Preview area found:', previewArea.length
+      
+      if previewArea.length is 0
+        console.error 'Preview area (.js-file-preview) not found in DOM'
+        return
+      
+      previewArea.show()
+      
+      # 기존 미리보기 초기화
+      previewArea.empty()
+      
+      for file, index in files
+        console.log "Creating preview for file #{index}: #{file.name}"
+        previewItem = @createFilePreviewItem(file, index)
+        previewArea.append(previewItem)
+      
+      # 전송 버튼 텍스트 변경
+      sendButton = @el.find('.js-send-message')
+      console.log 'Send button found:', sendButton.length
+      sendButton.text("파일 전송 (#{files.length}개)")
+      
+      console.log 'File preview setup completed'
+      
+    catch error
+      console.error 'Error in showFilePreview:', error
+      console.error 'Error stack:', error.stack if error.stack
 
   # 파일 미리보기 아이템 생성
   createFilePreviewItem: (file, index) =>
-    fileType = @getFileTypeFromName(file.name)
-    fileIcon = @getFileIcon(fileType, file.type)
-    
-    # 이미지 파일인 경우 썸네일 생성
-    if file.type.startsWith('image/')
-      reader = new FileReader()
-      reader.onload = (e) =>
-        @el.find(".file-preview-item[data-index='#{index}'] .file-thumbnail img").attr('src', e.target.result)
-      reader.readAsDataURL(file)
+    try
+      console.log "Creating preview item for: #{file.name}, index: #{index}"
       
-      thumbnailHtml = '<img style="max-width: 80px; max-height: 80px; object-fit: cover;">'
-    else
-      thumbnailHtml = "<span style='font-size: 24px;'>#{fileIcon}</span>"
+      fileType = @getFileTypeFromName(file.name)
+      fileIcon = @getFileIcon(fileType, file.type)
+      
+      console.log "File type: #{fileType}, File icon: #{fileIcon}"
     
-    """
-    <div class="file-preview-item" data-index="#{index}" style="display: inline-block; margin: 4px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; position: relative;">
-      <button class="js-remove-file" data-index="#{index}" style="position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 12px; cursor: pointer;">×</button>
-      <div class="file-thumbnail" style="text-align: center; margin-bottom: 4px;">
-        #{thumbnailHtml}
+      # 이미지 파일인 경우 썸네일 생성
+      if file.type.startsWith('image/')
+        console.log 'Creating image thumbnail for:', file.name
+        reader = new FileReader()
+        reader.onload = (e) =>
+          console.log 'Image loaded, setting thumbnail src'
+          @el.find(".file-preview-item[data-index='#{index}'] .file-thumbnail img").attr('src', e.target.result)
+        reader.onerror = (e) =>
+          console.error 'Error reading image file:', e
+        reader.readAsDataURL(file)
+        
+        thumbnailHtml = '<img style="max-width: 80px; max-height: 80px; object-fit: cover;">'
+      else
+        thumbnailHtml = "<span style='font-size: 24px;'>#{fileIcon}</span>"
+      
+      console.log 'Generating HTML for file preview item'
+      
+      html = """
+      <div class="file-preview-item" data-index="#{index}" style="display: inline-block; margin: 4px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; position: relative;">
+        <button class="js-remove-file" data-index="#{index}" style="position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 12px; cursor: pointer;">×</button>
+        <div class="file-thumbnail" style="text-align: center; margin-bottom: 4px;">
+          #{thumbnailHtml}
+        </div>
+        <div class="file-name" style="font-size: 10px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="#{file.name}">
+          #{file.name}
+        </div>
+        <div class="file-size" style="font-size: 9px; color: #666; text-align: center;">
+          #{@formatFileSize(file.size)}
+        </div>
       </div>
-      <div class="file-name" style="font-size: 10px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="#{file.name}">
-        #{file.name}
-      </div>
-      <div class="file-size" style="font-size: 9px; color: #666; text-align: center;">
-        #{@formatFileSize(file.size)}
-      </div>
-    </div>
-    """
+      """
+      
+      console.log 'File preview item HTML generated successfully'
+      return html
+      
+    catch error
+      console.error 'Error in createFilePreviewItem:', error
+      console.error 'Error stack:', error.stack if error.stack
+      return "<div class='file-preview-error'>파일 미리보기 생성 오류: #{file?.name || 'Unknown'}</div>"  # 파일 미리보기 제거
 
-  # 파일 미리보기 제거
   removeFilePreview: (button) =>
     index = button.data('index')
     button.closest('.file-preview-item').remove()

@@ -14,28 +14,65 @@ class KakaoChatFile < ApplicationModel
   validates :file_size, presence: true, numericality: { greater_than: 0 }
   validates :storage_path, presence: true
 
+  # 카카오 상담톡 송신 가능한 파일 목록
+  # 일반적인 파일 확장자 : pdf, odp, ppt, pptx, key, show, doc, docx, hwp, txt, rtf, xml, wks, wps, xps, md, odf, odt, pages, ods, csv, tsv, xls,
+  #                     xlsx, numbers, cell, psd, ai, sketch, tif, tiff, tga, webp, zip, gz, bz2, rar, 7z, lzh, alz
+  # 이미지 파일 확장자 : jpg, jpeg, gif, bmp, png, tiff
+  # 비디오 파일 확장자 : mp4, m4v, avi, asf, wmv, mkv, ts, mpg, mpeg, mov, flv, ogv
+  # 오디오 파일 확장자 : mp3, wav, flac, tta, tak, aac, wma, ogg, m4a  
+
   # 파일 타입 분류
   CONTENT_TYPE_CATEGORIES = {
-    image: %w[image/jpeg image/png image/gif image/webp image/bmp image/svg+xml],
-    video: %w[video/mp4 video/avi video/mov video/wmv video/flv video/webm video/mkv],
-    audio: %w[audio/mp3 audio/wav audio/aac audio/ogg audio/m4a audio/wma],
-    document: %w[application/pdf text/plain application/msword application/vnd.openxmlformats-officedocument.wordprocessingml.document 
-                 application/vnd.ms-excel application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-                 application/vnd.ms-powerpoint application/vnd.openxmlformats-officedocument.presentationml.presentation],
-    archive: %w[application/zip application/x-rar-compressed application/x-7z-compressed application/gzip],
-    other: []
+    image: %w[
+      image/jpeg image/jpg image/png image/gif image/bmp image/webp image/svg+xml
+      image/tiff image/tga
+    ],
+    video: %w[
+      video/mp4 video/m4v video/avi video/x-msvideo video/wmv video/x-ms-wmv
+      video/mkv video/webm video/flv video/x-flv video/quicktime video/mov
+      video/mpeg video/mpg video/x-mpeg video/mp2t video/vnd.dlna.mpeg-tts
+      video/ogg video/ogv application/x-shockwave-flash
+    ],
+    audio: %w[
+      audio/mp3 audio/mpeg audio/wav audio/wave audio/x-wav audio/flac
+      audio/x-flac audio/aac audio/mp4 audio/m4a audio/wma audio/x-ms-wma
+      audio/ogg audio/tta audio/tak
+    ],
+    document: %w[
+      application/pdf text/plain text/rtf text/xml text/markdown text/csv
+      application/msword application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      application/vnd.ms-excel application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      application/vnd.ms-powerpoint application/vnd.openxmlformats-officedocument.presentationml.presentation
+      application/vnd.oasis.opendocument.text application/vnd.oasis.opendocument.spreadsheet
+      application/vnd.oasis.opendocument.presentation application/vnd.oasis.opendocument.formula
+      application/vnd.ms-works application/vnd.ms-xpsdocument
+      application/vnd.apple.keynote application/vnd.apple.pages application/vnd.apple.numbers
+      application/x-hwp application/haansofthwp application/vnd.hancom.hwp
+      application/octet-stream application/json application/xml
+      image/vnd.adobe.photoshop application/postscript
+    ],
+    archive: %w[
+      application/zip application/x-zip-compressed application/gzip application/x-gzip
+      application/x-bzip2 application/x-rar-compressed application/vnd.rar
+      application/x-7z-compressed application/x-lzh-compressed application/x-alz-compressed
+    ],
+    other: %w[
+      application/octet-stream text/csv application/json application/xml text/html
+      application/vnd.ms-fontobject font/woff font/woff2 application/font-woff
+    ]
   }.freeze
 
   # 최대 파일 크기 (10MB)
   MAX_FILE_SIZE = 10.megabytes
 
-  # 허용된 파일 확장자
+  # 허용된 파일 확장자 (카카오톡 지원 파일 기준)
   ALLOWED_EXTENSIONS = %w[
-    jpg jpeg png gif webp bmp svg
-    mp4 avi mov wmv flv webm mkv
-    mp3 wav aac ogg m4a wma
-    pdf txt doc docx xls xlsx ppt pptx
-    zip rar 7z gz
+    jpg jpeg gif bmp png tiff tif tga webp
+    mp4 m4v avi asf wmv mkv ts mpg mpeg mov flv ogv
+    mp3 wav flac tta tak aac wma ogg m4a
+    pdf odp ppt pptx key show doc docx hwp txt rtf xml wks wps xps md 
+    odf odt pages ods csv tsv xls xlsx numbers cell psd ai sketch
+    zip gz bz2 rar 7z lzh alz
   ].freeze
 
   before_validation :set_defaults
