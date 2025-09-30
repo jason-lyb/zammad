@@ -494,7 +494,7 @@ class KakaoChatSession extends App.ControllerSubContent
         <div class="input-area">
           <textarea class="js-message-input" placeholder="#{placeholder}" rows="3"></textarea>
           <div class="file-upload-area">
-            <input type="file" class="js-file-input" multiple accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.gz" style="display: none;">
+            <input type="file" class="js-file-input" multiple accept=".pdf,.odp,.ppt,.pptx,.key,.show,.doc,.docx,.hwp,.txt,.rtf,.xml,.wks,.wps,.xps,.md,.odf,.odt,.pages,.ods,.csv,.tsv,.xls,.xlsx,.numbers,.cell,.psd,.ai,.sketch,.tif,.tiff,.tga,.webp,.zip,.gz,.bz2,.rar,.7z,.lzh,.alz,.jpg,.jpeg,.gif,.bmp,.png,.mp4,.m4v,.avi,.asf,.wmv,.mkv,.ts,.mpg,.mpeg,.mov,.flv,.ogv,.mp3,.wav,.flac,.tta,.tak,.aac,.wma,.ogg,.m4a" style="display: none;">
             <div class="file-preview js-file-preview" style="display: none;"></div>
           </div>
         </div>
