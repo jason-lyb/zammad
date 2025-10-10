@@ -1,6 +1,9 @@
 <div id="navigation" class="navigation vertical">
   <div class="search">
     <form class="search-holder">
+      <div class="extended-search-shortcut js-extended-search-shortcut" title="<%- @T('Extended Search') %>">
+        <%- @Icon('searchdetail') %>
+      </div>
       <input id="global-search" type="search" autocomplete="off">
       <%- @Icon('magnifier') %>
       <div class="search-loader"><%- @Icon('spinner-small') %></div>

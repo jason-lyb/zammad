@@ -5086,10 +5086,44 @@ footer {
   position: relative;
   transition: margin-right 120ms;
   will-change: margin-right;
+  display: flex;
+  align-items: center;
 
   @include phone {
     transition: none;
     will-change: initial;
+  }
+}
+
+.search-holder .extended-search-shortcut {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 24px;
+  width: 24px;
+  z-index: 999;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  .icon-searchdetail {
+    fill: var(--text-inverted);
+    opacity: 0.8;
+    width: 14px;
+    height: 14px;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.25);
+
+    .icon-searchdetail {
+      opacity: 1;
+    }
   }
 }
 
@@ -5121,7 +5155,7 @@ footer {
 
 .search input[type='search'] {
   width: 100%;
-  padding: 5px 33px;
+  padding: 5px 33px 5px 68px; /* left padding increased for both buttons */
   height: 30px;
   color: var(--menu-text);
   background: var(--menu-background-secondary);
@@ -5175,9 +5209,9 @@ input[type='search']::-webkit-search-decoration {
 .search .icon-magnifier {
   position: absolute;
   top: 8px;
-  left: 10px;
+  left: 42px; /* 확장검색 버튼 공간 확보를 위해 오른쪽으로 이동 */
 
-  @include bidi-style(left, 10px, right, auto);
+  @include bidi-style(left, 42px, right, auto);
 
   z-index: 2;
   fill: var(--menu-icon);

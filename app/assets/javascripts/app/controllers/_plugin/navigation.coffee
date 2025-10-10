@@ -13,6 +13,7 @@ class Navigation extends App.Controller
     'click .js-emptySearch': 'emptyAndClose'
     'submit form.search-holder': 'preventDefault'
     'dblclick form.search-holder .icon-magnifier': 'openExtendedSearch'
+    'click .js-extended-search-shortcut': 'openExtendedSearch'
     'focus #global-search': 'searchFocus'
     'blur #global-search': 'searchBlur'
     'paste #global-search': 'searchPaste'
