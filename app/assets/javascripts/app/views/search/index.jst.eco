@@ -2,14 +2,34 @@
   <div class="detail-search">
     <div class="detail-search-header">
 
-      <!-- 날짜 범위 검색 추가 -->
-      <div class="date-range-filter">
-        <div class="date-range-wrapper">
-          <label class="date-range-label"><%- @T('조회 기간') %></label>
-          <div class="date-inputs">
-            <input type="date" class="js-date-from form-control" name="date_from" placeholder="<%- @T('From') %>" value="<%= @dateFrom || '' %>">
-            <span class="date-separator">-</span>
-            <input type="date" class="js-date-to form-control" name="date_to" placeholder="<%- @T('To') %>" value="<%= @dateTo || '' %>">
+      <!-- 날짜 범위 및 담당자 검색 추가 -->
+      <div class="search-filters">
+        <div class="date-range-filter">
+          <div class="date-range-wrapper">
+            <label class="date-range-label"><%- @T('조회 기간') %></label>
+            <div class="date-inputs">
+              <input type="date" class="js-date-from form-control" name="date_from" placeholder="<%- @T('From') %>" value="<%= @dateFrom || '' %>">
+              <span class="date-separator">-</span>
+              <input type="date" class="js-date-to form-control" name="date_to" placeholder="<%- @T('To') %>" value="<%= @dateTo || '' %>">
+            </div>
+          </div>
+        </div>
+        
+        <div class="owner-filter">
+          <div class="owner-wrapper">
+            <label class="owner-label"><%- @T('담당자') %></label>
+            <div class="owner-select-wrapper">
+              <select class="js-owner-select form-control" name="owner_id">
+                <option value=""><%- @T('전체') %></option>
+                <% if @agents: %>
+                  <% for agent in @agents: %>
+                    <option value="<%= agent.id %>" <% if @ownerId == agent.id.toString(): %>selected<% end %>>
+                      <%= agent.name %> (<%= agent.login %>)
+                    </option>
+                  <% end %>
+                <% end %>
+              </select>
+            </div>
           </div>
         </div>
       </div>

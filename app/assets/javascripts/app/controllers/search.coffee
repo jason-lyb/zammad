@@ -8,6 +8,7 @@ class App.Search extends App.Controller
     '.js-search': 'searchInput'
     '.js-date-from': 'dateFromInput'  # 추가
     '.js-date-to': 'dateToInput'      # 추가
+    '.js-owner-select': 'ownerSelect' # 추가
 
   events:
     'click .js-emptySearch': 'empty'
@@ -18,7 +19,8 @@ class App.Search extends App.Controller
     'click .js-page': 'paginate'
     'click .js-sort': 'sortByColumn'
     'change .js-date-from': 'onDateChange'  # 추가
-    'change .js-date-to': 'onDateChange'    # 추가    
+    'change .js-date-to': 'onDateChange'    # 추가
+    'change .js-owner-select': 'onOwnerChange' # 추가
 
   @include App.ValidUsersForTicketSelectionMethods
 
@@ -36,7 +38,8 @@ class App.Search extends App.Controller
 
     # 날짜 기본값 설정
     @dateFrom = current?.dateFrom || @getTodayString()
-    @dateTo = current?.dateTo || @getTodayString()      
+    @dateTo = current?.dateTo || @getTodayString()
+    @ownerId = current?.ownerId || ''  # 담당자 ID 추가
 
     # update taskbar with new meta data
     App.TaskManager.touch(@taskKey)
@@ -56,7 +59,37 @@ class App.Search extends App.Controller
     load = (data) =>
       App.Collection.loadAssets(data.assets)
       @formMeta = data.form_meta
+      console.log 'formMeta loaded from TicketOverviewCollection:', @formMeta
+      # formMeta가 로드되면 다시 렌더링
+      if @formMeta
+        @render()
     @bindId = App.TicketOverviewCollection.bind(load)
+    
+    # 500ms 후에 formMeta 확인하고 없으면 직접 로드
+    setTimeout(=>
+      @loadFormMeta()
+    , 500)
+
+  # formMeta 직접 로드 (ticket_create와 동일한 방식)
+  loadFormMeta: =>
+    if @formMeta && @formMeta.dependencies && @formMeta.dependencies.group_id
+      console.log 'formMeta already loaded and valid, skipping'
+      return
+    
+    console.log 'Loading formMeta from ticket_create API...'
+    @ajax(
+      type: 'GET'
+      url: "#{@apiPath}/ticket_create"
+      processData: true
+      success: (data) =>
+        App.Collection.loadAssets(data.assets)
+        @formMeta = data.form_meta
+        console.log 'formMeta loaded from ticket_create API:', @formMeta
+        # formMeta 로드 후 다시 렌더링
+        @render()
+      error: (xhr, status, error) =>
+        console.log 'Failed to load formMeta:', error
+    )
 
   release: =>
     App.TicketOverviewCollection.unbindById(@bindId)
@@ -118,6 +151,7 @@ class App.Search extends App.Controller
     "#{year}-#{month}-#{day}"
 
   render: ->
+    console.log 'render() called'
     currentState = App.TaskManager.get(@taskKey).state
     if !@query
       if currentState && currentState.query
@@ -131,7 +165,8 @@ class App.Search extends App.Controller
 
     # 날짜 기본값 설정
     @dateFrom = current?.dateFrom || @getTodayString()
-    @dateTo = current?.dateTo || @getTodayString()      
+    @dateTo = current?.dateTo || @getTodayString()
+    @ownerId = current?.ownerId || ''  # 담당자 ID 추가
 
     @tabs = []
     for model in App.Config.get('models_searchable')
@@ -146,11 +181,17 @@ class App.Search extends App.Controller
       @tabs.push tab
 
     # build view
+    console.log 'About to call getAgents()'
+    agents = @getAgents()
+    console.log 'getAgents() returned:', agents
+    
     elLocal = $(App.view('search/index')(
       query: @query
       tabs: @tabs
       dateFrom: @dateFrom    # 추가
-      dateTo: @dateTo        # 추가      
+      dateTo: @dateTo        # 추가
+      ownerId: @ownerId      # 담당자 ID 추가
+      agents: agents   # 담당자 목록 추가
     ))
 
     if App.User.current().permission('ticket.agent')
@@ -166,21 +207,124 @@ class App.Search extends App.Controller
 
     @html elLocal
 
-    # 렌더링 후 날짜 필드 값 설정
+    # 렌더링 후 필드 값 설정
     @dateFromInput = @$('.js-date-from')
     @dateToInput = @$('.js-date-to')
+    @ownerSelect = @$('.js-owner-select')
 
     if @dateFromInput.length > 0
       @dateFromInput.val(@dateFrom)
     if @dateToInput.length > 0
       @dateToInput.val(@dateTo)
+    if @ownerSelect.length > 0
+      @ownerSelect.val(@ownerId)
 
-    if @query || @hasDateRange()
+    if @query || @hasDateRange() || @hasOwner()
       @search(500, true)
 
   # 날짜 범위가 설정되어 있는지 확인
   hasDateRange: ->
     (@dateFrom && @dateFrom.length > 0) || (@dateTo && @dateTo.length > 0)
+
+  # 담당자가 설정되어 있는지 확인
+  hasOwner: ->
+    @ownerId && @ownerId.length > 0
+
+  # 담당자 목록 가져오기 (티켓 생성에서 사용하는 formMeta 방식)
+  getAgents: ->
+    agents = []
+    
+    console.log 'getAgents called, formMeta:', @formMeta
+    console.log 'formMeta.dependencies:', @formMeta?.dependencies
+    console.log 'formMeta.dependencies.group_id:', @formMeta?.dependencies?.group_id
+    
+    # 1순위: formMeta 사용
+    if @formMeta?.dependencies?.group_id
+      # 모든 그룹의 담당자 ID를 수집
+      allOwnerIds = []
+      for groupId, deps of @formMeta.dependencies.group_id
+        if deps.owner_id && _.isArray(deps.owner_id)
+          allOwnerIds = _.union(allOwnerIds, deps.owner_id)
+      
+      # 중복 제거
+      allOwnerIds = _.uniq(allOwnerIds)
+      
+      console.log 'Found owner IDs from formMeta:', allOwnerIds
+      
+      # User 객체로 변환하고 정렬
+      for ownerId in allOwnerIds
+        user = App.User.find(ownerId)
+        if user
+          agents.push(
+            id: user.id
+            name: user.displayName() || "#{user.firstname} #{user.lastname}".trim() || user.login
+            login: user.login
+            email: user.email
+          )
+    
+    # formMeta에서 찾지 못했거나 없는 경우 폴백 사용
+    if agents.length == 0
+      console.log 'No agents found from formMeta, using fallback method'
+      
+      # Agent 권한을 가진 모든 사용자 검색
+      try
+        # 현재 사용자가 볼 수 있는 모든 그룹 가져오기
+        currentUser = App.User.current()
+        if currentUser
+          allGroupIds = currentUser.allGroupIds('read')
+          console.log 'Current user groups:', allGroupIds
+          
+          # 각 그룹의 멤버들 확인
+          uniqueUserIds = []
+          for groupId in allGroupIds || []
+            group = App.Group.find(groupId)
+            if group && group.user_ids
+              uniqueUserIds = _.union(uniqueUserIds, group.user_ids)
+          
+          console.log 'Found user IDs from groups:', uniqueUserIds
+          
+          # User 객체로 변환
+          for userId in uniqueUserIds
+            user = App.User.find(userId)
+            if user && user.active
+              agents.push(
+                id: user.id
+                name: user.displayName() || "#{user.firstname} #{user.lastname}".trim() || user.login
+                login: user.login
+                email: user.email
+              )
+      catch error
+        console.log 'Error in fallback method:', error
+        
+        # 최종 폴백: 모든 활성 사용자 중에서 Agent 권한 확인
+        allUsers = App.User.all()
+        console.log 'Using final fallback - total users:', allUsers.length
+        
+        for user in allUsers
+          continue unless user.active
+          
+          # Agent 권한 확인
+          hasAgentPermission = false
+          
+          if user.role_ids && user.role_ids.length > 0
+            for roleId in user.role_ids
+              role = App.Role.find(roleId)
+              if role && role.permissions && _.contains(role.permissions, 'ticket.agent')
+                hasAgentPermission = true
+                break
+          
+          if hasAgentPermission
+            agents.push(
+              id: user.id
+              name: user.displayName() || "#{user.firstname} #{user.lastname}".trim() || user.login
+              login: user.login
+              email: user.email
+            )
+    
+    console.log 'Final agents found:', agents.length, agents
+    
+    # 이름순으로 정렬
+    _.sortBy(agents, 'name')
 
   listNavigate: (e) =>
     @resultPaginated = {}
@@ -201,9 +345,12 @@ class App.Search extends App.Controller
       @dateFromInput.val(todayString)
     if @dateToInput && @dateToInput.length > 0
       @dateToInput.val(todayString)
+    if @ownerSelect && @ownerSelect.length > 0
+      @ownerSelect.val('')
     @query = ''
     @dateFrom = todayString
     @dateTo = todayString
+    @ownerId = ''
     @updateFilledClass()
     @updateTask()
     @delayedRemoveAnyPopover()
@@ -216,8 +363,8 @@ class App.Search extends App.Controller
     finalQuery = @buildQueryWithDateRange(query)
 
     if !force
-      return if !finalQuery && !@hasDateRange()
-      return if finalQuery is @lastFinalQuery && !@dateChanged()
+      return if !finalQuery && !@hasDateRange() && !@hasOwner()
+      return if finalQuery is @lastFinalQuery && !@dateChanged() && !@ownerChanged()
     
     @query = query  # 원본 쿼리는 사용자 입력만 저장
     @lastFinalQuery = finalQuery  # 마지막 최종 쿼리 저장
@@ -241,30 +388,38 @@ class App.Search extends App.Controller
       searchParams.date_from = @dateFrom
     if @dateTo && @dateTo.length > 0
       searchParams.date_to = @dateTo
+    # 담당자 파라미터 추가
+    if @ownerId && @ownerId.length > 0
+      searchParams.owner_id = @ownerId
 
     console.log '[Search] Calling GlobalSearch with params:', searchParams
 
     @globalSearch.search(searchParams)
   
-    # 쿼리에 날짜 범위를 추가하는 메서드
+    # 쿼리에 날짜 범위와 담당자를 추가하는 메서드
   buildQueryWithDateRange: (baseQuery) ->
     # 기본 쿼리 정리
     cleanQuery = baseQuery.trim()
+    conditions = []
     
     # 날짜 범위 쿼리 생성
-    dateQuery = ''
     if @dateFrom && @dateTo && @dateFrom.length > 0 && @dateTo.length > 0
-      dateQuery = "created_at:[#{@dateFrom} TO #{@dateTo}]"
+      conditions.push("created_at:[#{@dateFrom} TO #{@dateTo}]")
     else if @dateFrom && @dateFrom.length > 0
-      dateQuery = "created_at:[#{@dateFrom} TO *]"
+      conditions.push("created_at:[#{@dateFrom} TO *]")
     else if @dateTo && @dateTo.length > 0
-      dateQuery = "created_at:[* TO #{@dateTo}]"
+      conditions.push("created_at:[* TO #{@dateTo}]")
+    
+    # 담당자 조건 추가
+    if @ownerId && @ownerId.length > 0
+      conditions.push("owner_id:#{@ownerId}")
     
     # 최종 쿼리 조합
-    if cleanQuery && dateQuery
-      "#{cleanQuery} #{dateQuery}"
-    else if dateQuery
-      dateQuery
+    allConditions = conditions.join(' ')
+    if cleanQuery && allConditions
+      "#{cleanQuery} #{allConditions}"
+    else if allConditions
+      allConditions
     else
       cleanQuery
 
@@ -272,27 +427,11 @@ class App.Search extends App.Controller
   dateChanged: ->
     @dateFrom != @lastDateFrom || @dateTo != @lastDateTo
 
-  # 쿼리에 날짜 범위를 추가하는 메서드
-  buildQueryWithDateRange: (baseQuery) ->
-    # 기본 쿼리 정리
-    cleanQuery = baseQuery.trim()
-    
-    # 날짜 범위 쿼리 생성
-    dateQuery = ''
-    if @dateFrom && @dateTo && @dateFrom.length > 0 && @dateTo.length > 0
-      dateQuery = "created_at:[#{@dateFrom} TO #{@dateTo}]"
-    else if @dateFrom && @dateFrom.length > 0
-      dateQuery = "created_at:[#{@dateFrom} TO *]"
-    else if @dateTo && @dateTo.length > 0
-      dateQuery = "created_at:[* TO #{@dateTo}]"
-    
-    # 최종 쿼리 조합
-    if cleanQuery && dateQuery
-      "#{cleanQuery} #{dateQuery}"
-    else if dateQuery
-      dateQuery
-    else
-      cleanQuery
+  # 담당자가 변경되었는지 확인
+  ownerChanged: ->
+    @ownerId != @lastOwnerId
+
+
 
   buildResultCacheKey: (offset, direction, column, object) -> {
     "#{object}-#{offset}-#{direction}-#{column}"
@@ -578,7 +717,17 @@ class App.Search extends App.Controller
     @updateTask()
     
     # 검색어가 있을 때만 자동 검색
-    @search(500, true)    
+    @search(500, true)
+
+  # 담당자 변경 시 호출되는 메서드
+  onOwnerChange: (e) =>
+    @ownerId = @ownerSelect.val() if @ownerSelect
+
+    # 자동으로 담당자 필터 적용
+    @updateTask()
+    
+    # 자동 검색 실행
+    @search(500, true)
 
     # 자동으로 날짜 필터 적용 (버튼 클릭 없이)
   autoApplyDateFilter: =>
@@ -646,7 +795,8 @@ class App.Search extends App.Controller
     current.query = @query
     current.model = @model
     current.dateFrom = @dateFrom  # 추가
-    current.dateTo = @dateTo      # 추가    
+    current.dateTo = @dateTo      # 추가
+    current.ownerId = @ownerId    # 담당자 ID 추가
     App.TaskManager.update(@taskKey, { state: current })
     App.TaskManager.touch(@taskKey)
 

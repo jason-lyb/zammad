@@ -109,7 +109,7 @@ class Kakao extends App.ControllerIntegrationBase
     )
 
   update: (e) ->
-    e.preventDefault()
+    e.preventDefault() 
     
     # Get form data
     params = @getFormData()

@@ -188,6 +188,97 @@ class CreateKakaoConsultationSessions < ActiveRecord::Migration[6.1]
       frontend: false
     )
 
+    # 상담톡 API 서버 엔드포인트 설정
+    Setting.create_if_not_exists(
+      title: '상담톡 API 서버 엔드포인트',
+      name: 'kakao_api_endpoint',
+      area: 'Integration::Kakao',
+      description: '카카오톡 상담톡 API 서버의 엔드포인트 URL',
+      options: {
+        form: [
+          {
+            display: '상담톡 API 서버 URL',
+            null: false,
+            name: 'kakao_api_endpoint',
+            tag: 'input',
+            placeholder: 'https://consultation-api.company.com',
+          },
+        ],
+      },
+      preferences: { 
+        permission: ['admin.integration.kakao'] 
+      },
+      state: 'http://10.1.4.210:18000',
+      frontend: false
+    )
+
+    # 상담톡 API 인증 토큰 설정
+    Setting.create_if_not_exists(
+      title: '상담톡 API 인증 토큰',
+      name: 'kakao_api_token',
+      area: 'Integration::Kakao',
+      description: '상담톡 API 서버 인증을 위한 토큰',
+      options: {
+        form: [
+          {
+            display: 'API 인증 토큰',
+            null: false,
+            name: 'kakao_api_token',
+            tag: 'input',
+            type: 'password',
+          },
+        ],
+      },
+      preferences: { 
+        permission: ['admin.integration.kakao'] 
+      },
+      state: '',
+      frontend: false
+    )  
+    
+    # 카카오톡 상담 세션 타임아웃 설정
+    Setting.create_if_not_exists(
+      title: '카카오톡 상담 세션 타임아웃',
+      name: 'kakao_session_timeout',
+      area: 'Integration::Kakao',
+      description: '상담 세션이 비활성 상태로 유지될 최대 시간(분)',
+      options: {
+        form: [
+          {
+            display: '세션 타임아웃 (분)',
+            null: false,
+            name: 'kakao_session_timeout',
+            tag: 'input',
+            type: 'number',
+            min: 5,
+            max: 1440,
+          },
+        ],
+      },
+      preferences: { 
+        permission: ['admin.integration.kakao'] 
+      },
+      state: 30,
+      frontend: false
+    )    
+
+    # 카카오톡 통합 설정 (복합 설정 객체)
+    Setting.create_if_not_exists(
+      title: '카카오톡 통합 설정',
+      name: 'kakao_config',
+      area: 'Integration::Kakao',
+      description: '카카오톡 통합 전체 설정',
+      options: {},
+      preferences: { 
+        permission: ['admin.integration.kakao'] 
+      },
+      state: {
+        api_endpoint: 'http://10.1.4.200:8002/',
+        api_token: 'aa'
+      },
+      frontend: false
+    )    
+
     Setting.create_if_not_exists(
       title: '내부 API 서버 URL',
       name: 'kakao_internal_api_endpoint',
